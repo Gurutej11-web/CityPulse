@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CityPulse — Smart City Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060D18;--bg2:#0A1628;--bg3:#0F1F3D;
+  --accent:#00C9FF;--accent2:#7B61FF;--accent3:#00FFB2;
+  --warn:#FF6D00;--danger:#FF3B5C;--ok:#00E676;
+  --text:#F0F4FF;--text2:#8896B3;--text3:#4A5568;
+  --card:rgba(15,31,61,0.7);--border:rgba(0,201,255,0.12);
+  font-family:'Space Grotesk',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
+#root{min-height:100vh}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px;opacity:.5}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s ease,transform .6s ease}
+#splash.fade-out{opacity:0;transform:scale(1.05);pointer-events:none}
+.splash-rings{position:relative;width:180px;height:180px;margin-bottom:32px}
+.splash-ring{position:absolute;border-radius:50%;border:2px solid transparent}
+.splash-ring:nth-child(1){inset:0;border-color:rgba(0,201,255,.8);animation:ringPulse 2s ease-in-out infinite}
+.splash-ring:nth-child(2){inset:16px;border-color:rgba(123,97,255,.6);animation:ringPulse 2s ease-in-out infinite .3s}
+.splash-ring:nth-child(3){inset:32px;border-color:rgba(0,255,178,.4);animation:ringPulse 2s ease-in-out infinite .6s}
+.splash-logo{position:absolute;inset:48px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;letter-spacing:-1px}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.08);opacity:.3}}
+.splash-title{font-size:36px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-1px;margin-bottom:8px}
+.splash-subtitle{color:var(--text2);font-size:14px;letter-spacing:3px;text-transform:uppercase;margin-bottom:40px}
+.splash-bar-wrap{width:280px;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:16px}
+.splash-bar{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s ease}
+.splash-phase{color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.5px}
+
+/* TOAST */
+#toast-container{position:fixed;bottom:72px;right:24px;z-index:8000;display:flex;flex-direction:column-reverse;gap:10px;pointer-events:none}
+.toast{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:10px;min-width:260px;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:toastIn .35s cubic-bezier(.21,1.02,.73,1) forwards;pointer-events:all}
+.toast.out{animation:toastOut .35s ease forwards}
+.toast-icon{font-size:18px;flex-shrink:0}
+.toast-msg{font-size:13px;color:var(--text);line-height:1.4}
+.toast.success{border-color:rgba(0,230,118,.3)}
+.toast.warning{border-color:rgba(255,109,0,.3)}
+.toast.danger{border-color:rgba(255,59,92,.3)}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(40px)}}
+
+/* TICKER */
+.ticker-bar{position:fixed;bottom:0;left:0;right:0;height:36px;background:rgba(6,13,24,.95);border-top:1px solid var(--border);z-index:700;overflow:hidden;display:flex;align-items:center}
+.ticker-label{padding:0 16px;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;border-right:1px solid var(--border);height:100%;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ticker-track{flex:1;overflow:hidden;position:relative}
+.ticker-inner{display:flex;white-space:nowrap;animation:tickerScroll 40s linear infinite}
+.ticker-inner:hover{animation-play-state:paused}
+.ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 24px;font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.ticker-sep{margin:0 4px;opacity:.25}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* NAVBAR */
+.nav{position:fixed;top:0;left:0;right:0;height:60px;background:rgba(6,13,24,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);z-index:600;display:flex;align-items:center;padding:0 20px;gap:16px}
+.nav-brand{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-0.5px;white-space:nowrap;cursor:pointer}
+.nav-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;scrollbar-width:none}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .2s;border:none;background:none;white-space:nowrap}
+.nav-tab:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.nav-tab.active{color:var(--accent);background:rgba(0,201,255,.1)}
+.nav-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.nav-clock{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2);letter-spacing:1px}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);position:relative;display:inline-block;flex-shrink:0}
+.live-dot::after{content:'';position:absolute;inset:-3px;border-radius:50%;background:rgba(0,230,118,.3);animation:livePulse 2s ease infinite}
+@keyframes livePulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(2);opacity:0}}
+.icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:all .2s;color:var(--text2);font-size:16px}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,201,255,.08)}
+.badge{position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:var(--danger);border-radius:50%;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg)}
+
+/* NOTIF DROPDOWN */
+.notif-dropdown{position:absolute;top:44px;right:0;width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.6);z-index:650;animation:dropIn .2s ease}
+@keyframes dropIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.notif-header{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.notif-item{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:10px;align-items:flex-start;transition:background .15s;cursor:pointer}
+.notif-item:hover{background:rgba(255,255,255,.03)}
+.notif-icon-cell{font-size:18px;flex-shrink:0;margin-top:2px}
+.notif-text{font-size:12px;color:var(--text2);line-height:1.5}
+.notif-time{font-size:10px;color:var(--text3);margin-top:4px;font-family:'JetBrains Mono',monospace}
+.notif-unread{background:rgba(0,201,255,.04)}
+
+/* KBD OVERLAY */
+.kbd-overlay{position:fixed;inset:0;background:rgba(6,13,24,.9);z-index:8500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);animation:fadeIn .2s ease}
+.kbd-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:32px;min-width:400px;max-width:90vw}
+.kbd-title{font-size:20px;font-weight:700;margin-bottom:24px;color:var(--accent)}
+.kbd-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
+.kbd-key{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:3px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* SOS */
+.sos-btn{position:fixed;bottom:56px;left:24px;z-index:700;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#FF3B5C,#FF6D00);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;letter-spacing:.5px;box-shadow:0 4px 20px rgba(255,59,92,.4);transition:transform .2s;animation:sosPulse 3s ease infinite}
+.sos-btn:hover{transform:scale(1.1)}
+@keyframes sosPulse{0%,100%{box-shadow:0 4px 20px rgba(255,59,92,.4)}50%{box-shadow:0 4px 40px rgba(255,59,92,.8)}}
+.sos-panel{position:fixed;bottom:120px;left:24px;z-index:700;background:var(--bg2);border:1px solid rgba(255,59,92,.4);border-radius:16px;padding:20px;width:280px;box-shadow:0 16px 48px rgba(0,0,0,.6);animation:dropIn .2s ease}
+.sos-title{font-size:14px;font-weight:700;color:var(--danger);margin-bottom:12px}
+.sos-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s}
+.sos-item:hover{background:rgba(255,59,92,.1)}
+
+/* PAGE */
+.page-wrap{animation:pageIn .3s ease}
+@keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.main{padding:72px 20px 56px;max-width:1400px;margin:0 auto}
+.section-title{font-size:22px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;backdrop-filter:blur(16px);transition:border-color .2s,box-shadow .2s}
+.card:hover{border-color:rgba(0,201,255,.25);box-shadow:0 0 30px rgba(0,201,255,.06)}
+.card-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;backdrop-filter:blur(16px);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.aqi::before{background:linear-gradient(90deg,#00E676,#FFD600)}
+.stat-card.traffic::before{background:linear-gradient(90deg,#FF6D00,#FFD600)}
+.stat-card.noise::before{background:linear-gradient(90deg,#7B61FF,#00C9FF)}
+.stat-card.energy::before{background:linear-gradient(90deg,#00FFB2,#00C9FF)}
+.stat-num{font-size:36px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-1px}
+.stat-unit{font-size:14px;color:var(--text2);margin-left:4px}
+.stat-name{font-size:12px;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+.prog-bar-wrap{background:rgba(255,255,255,.06);border-radius:3px;height:6px;overflow:hidden}
+.prog-bar{height:100%;border-radius:3px;transition:width .8s ease}
+
+/* AI CARD */
+.ai-card{border-radius:16px;padding:2px;background:linear-gradient(135deg,rgba(0,201,255,.3),rgba(123,97,255,.3),rgba(0,255,178,.3))}
+.ai-card-inner{background:rgba(6,13,24,.9);border-radius:14px;padding:20px}
+.ai-tag{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ai-text{font-size:14px;line-height:1.7;color:var(--text)}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.5s ease infinite}
+.typing-cursor{display:inline-block;width:2px;height:14px;background:var(--accent);margin-left:2px;animation:blinkCursor .8s step-end infinite;vertical-align:middle}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes blinkCursor{0%,100%{opacity:1}50%{opacity:0}}
+
+/* BUTTONS */
+.btn{padding:8px 18px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;border:none;display:inline-flex;align-items:center;gap:7px;font-family:'Space Grotesk',sans-serif}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{opacity:.85;transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:rgba(255,255,255,.1);border-color:rgba(0,201,255,.3)}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:8px}
+.spin{display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* NEIGHBORHOOD SELECTOR */
+.neigh-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.neigh-btn{padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text2);cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.neigh-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,201,255,.08)}
+.neigh-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,201,255,.12)}
+.fav-star{cursor:pointer;font-size:14px;transition:transform .2s;line-height:1}
+.fav-star:hover{transform:scale(1.3)}
+
+/* ADVISORY */
+.advisory-card{border-radius:12px;padding:16px;display:flex;align-items:center;gap:14px}
+.advisory-card.safe{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2)}
+.advisory-card.caution{background:rgba(255,109,0,.08);border:1px solid rgba(255,109,0,.2)}
+.advisory-card.unsafe{background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.2)}
+.advisory-emoji{font-size:32px;flex-shrink:0}
+.advisory-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.advisory-text{font-size:12px;color:var(--text2);line-height:1.5}
+
+/* MAP */
+.map-wrap{border-radius:16px;overflow:hidden;border:1px solid var(--border);position:relative}
+.layer-toggle{background:rgba(6,13,24,.9);border:1px solid var(--border);border-radius:12px;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .2s;white-space:nowrap;letter-spacing:.5px}
+.layer-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.layer-toggle.active{color:var(--accent);border-color:var(--accent);background:rgba(0,201,255,.1)}
+
+/* COMMUNITY */
+.report-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;backdrop-filter:blur(8px);transition:border-color .2s}
+.report-item:hover{border-color:rgba(0,201,255,.2)}
+.report-cat{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase}
+.severity-high{background:rgba(255,59,92,.15);color:#FF3B5C}
+.severity-medium{background:rgba(255,109,0,.15);color:#FF6D00}
+.severity-low{background:rgba(0,230,118,.15);color:#00E676}
+.upvote-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);cursor:pointer;font-size:12px;color:var(--text2);transition:all .2s;position:relative}
+.upvote-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.upvote-btn.voted{border-color:var(--accent2);color:var(--accent2);background:rgba(123,97,255,.12)}
+.float-plus{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:12px;color:var(--accent2);font-weight:700;pointer-events:none;animation:floatUp .9s ease forwards;white-space:nowrap}
+@keyframes floatUp{0%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-32px)}}
+.pop-scale{animation:popScale .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popScale{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(6,13,24,.85);z-index:7000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);animation:fadeIn .2s ease}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:28px;width:100%;max-width:480px;animation:modalIn .3s cubic-bezier(.21,1.02,.73,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
+.input{width:100%;padding:10px 14px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s;font-family:'Inter',sans-serif}
+.input:focus{border-color:var(--accent)}
+.label{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+.form-group{margin-bottom:16px}
+select.input option{background:var(--bg2)}
+
+/* ALERT BANNER */
+.alert-banner{background:linear-gradient(135deg,rgba(255,59,92,.15),rgba(255,109,0,.1));border-bottom:1px solid rgba(255,59,92,.3);padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;position:sticky;top:60px;z-index:595}
+
+/* TRANSIT */
+.transit-row{display:flex;align-items:center;gap:14px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:12px;margin-bottom:8px}
+.route-badge{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;min-width:44px;text-align:center}
+.transit-min{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);min-width:36px}
+
+/* COMPARE TABLE */
+.compare-table{width:100%;border-collapse:separate;border-spacing:0 6px}
+.compare-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:4px 12px;text-align:left}
+.compare-table td{padding:9px 12px;background:rgba(255,255,255,.03);font-size:13px}
+.compare-table td:first-child{border-radius:10px 0 0 10px}
+.compare-table td:last-child{border-radius:0 10px 10px 0}
+.compare-bar{height:6px;border-radius:3px;transition:width .6s ease}
+
+/* FRESHNESS */
+.freshness{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.fresh-dot{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:blink 2s ease infinite}
+
+/* ECO */
+.eco-card{background:linear-gradient(135deg,rgba(0,255,178,.08),rgba(0,201,255,.05));border:1px solid rgba(0,255,178,.2);border-radius:12px;padding:16px}
+.eco-tag{font-size:10px;font-weight:700;color:var(--accent3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+
+/* SCORE GLOW */
+.score-glow-green{filter:drop-shadow(0 0 12px rgba(0,230,118,.5))}
+.score-glow-yellow{filter:drop-shadow(0 0 12px rgba(255,214,0,.4))}
+.score-glow-red{filter:drop-shadow(0 0 12px rgba(255,59,92,.4))}
+
+/* LEARN */
+.learn-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;backdrop-filter:blur(16px);transition:transform .2s,border-color .2s}
+.learn-card:hover{transform:translateY(-3px);border-color:rgba(0,201,255,.3)}
+.learn-icon{font-size:36px;margin-bottom:14px}
+
+/* COPY BTN */
+.copy-btn{position:absolute;top:12px;right:14px;padding:4px 10px;font-size:11px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .2s}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* RADAR */
+.radar-wrap{height:240px}
+</style>
+</head>
+<body>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#8896B3;font-family:monospace">Initializing CityPulse…</div></div>
+<div id="toast-container"></div>
+
+<div id="splash">
+  <div class="splash-rings">
+    <div class="splash-ring"></div>
+    <div class="splash-ring"></div>
+    <div class="splash-ring"></div>
+    <div class="splash-logo">CP</div>
+  </div>
+  <div class="splash-title">CityPulse</div>
+  <div class="splash-subtitle">Smart City Intelligence</div>
+  <div class="splash-bar-wrap"><div class="splash-bar" id="splash-bar" style="width:0%"></div></div>
+  <div class="splash-phase" id="splash-phase">Connecting to city data streams…</div>
+</div>
+
+<script>
+(function(){
+  var phases=['Connecting to city data streams…','Loading neighborhood sensors…','Calibrating health scores…','Initializing AI briefing engine…','Rendering live city map…','City intelligence ready ✓'];
+  var bar=document.getElementById('splash-bar');
+  var phaseEl=document.getElementById('splash-phase');
+  var i=0;
+  function step(){
+    if(!bar)return;
+    bar.style.width=Math.round((i+1)/phases.length*100)+'%';
+    phaseEl.textContent=phases[i];
+    i++;
+    if(i<phases.length)setTimeout(step,380);
+    else setTimeout(function(){
+      var s=document.getElementById('splash');
+      if(s){s.classList.add('fade-out');setTimeout(function(){s.style.display='none';},650);}
+    },400);
+  }
+  setTimeout(step,200);
+})();
+window.CityToast=(function(){
+  var ctr=document.getElementById('toast-container');
+  var icons={success:'✅',warning:'⚠️',danger:'🚨',info:'ℹ️'};
+  return function(msg,type,dur){
+    type=type||'info';dur=dur||3200;
+    var d=document.createElement('div');
+    d.className='toast '+(type||'');
+    d.innerHTML='<span class="toast-icon">'+icons[type]+'</span><span class="toast-msg">'+msg+'</span>';
+    ctr.appendChild(d);
+    setTimeout(function(){d.classList.add('out');setTimeout(function(){if(d.parentNode)ctr.removeChild(d);},400);},dur);
+  };
+})();
+</script>
+
+<script>
+window.addEventListener('load',function(){
+  var script=document.querySelector('script[type="text/babel"]');
+  if(!script||typeof Babel==='undefined')return;
+  try{
+    var result=Babel.transform(script.textContent,{presets:[['react',{runtime:'classic'}]]});
+    (new Function(result.code))();
+  }catch(e){
+    console.error('CityPulse boot error:',e);
+    document.getElementById('root').innerHTML='<div style="color:#FF6D00;padding:40px;font-family:monospace;white-space:pre">Boot error: '+e.message+'\n\n'+(e.stack||'').slice(0,800)+'</div>';
+  }
+});
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,createContext,useContext,useMemo}=React;
+const {LineChart,Line,BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,
+       RadarChart,PolarGrid,PolarAngleAxis,Radar,AreaChart,Area}=Recharts;
+
+const NEIGHBORHOODS=[
+  {id:'downtown',name:'Downtown',lat:37.7945,lng:-122.3952,color:'#00C9FF'},
+  {id:'mission',name:'Mission',lat:37.7599,lng:-122.4148,color:'#7B61FF'},
+  {id:'soma',name:'SoMa',lat:37.7785,lng:-122.4056,color:'#00FFB2'},
+  {id:'richmond',name:'Richmond',lat:37.7797,lng:-122.4644,color:'#FF6D00'},
+  {id:'nob_hill',name:'Nob Hill',lat:37.7930,lng:-122.4162,color:'#FFD600'},
+  {id:'haight',name:'Haight',lat:37.7693,lng:-122.4476,color:'#FF3B5C'},
+  {id:'marina',name:'Marina',lat:37.8026,lng:-122.4369,color:'#00E676'},
+];
+const LAYERS=[
+  {id:'aqi',name:'Air Quality',icon:'🌬️',unit:'AQI'},
+  {id:'traffic',name:'Traffic',icon:'🚗',unit:'mph'},
+  {id:'noise',name:'Noise',icon:'🔊',unit:'dB'},
+  {id:'energy',name:'Energy',icon:'⚡',unit:'MW'},
+  {id:'incidents',name:'Incidents',icon:'🚨',unit:''},
+  {id:'transit',name:'Transit',icon:'🚌',unit:'min'},
+  {id:'pedestrian',name:'Foot Traffic',icon:'🚶',unit:'k/hr'},
+];
+const NAV=[
+  {id:'dashboard',label:'Dashboard',icon:'📊'},
+  {id:'map',label:'Live Map',icon:'🗺️'},
+  {id:'neighborhood',label:'My Neighborhood',icon:'🏘️'},
+  {id:'reports',label:'Community',icon:'💬'},
+  {id:'insights',label:'City Insights',icon:'🔍'},
+  {id:'learn',label:'Learn',icon:'📚'},
+];
+const PROFILES={
+  downtown:{aqi:55,traffic:60,noise:72,energy:850,incidents:8,transit:3,pedestrian:42},
+  mission:{aqi:38,traffic:45,noise:58,energy:420,incidents:5,transit:5,pedestrian:28},
+  soma:{aqi:62,traffic:55,noise:65,energy:640,incidents:6,transit:4,pedestrian:35},
+  richmond:{aqi:28,traffic:30,noise:42,energy:310,incidents:2,transit:8,pedestrian:15},
+  nob_hill:{aqi:35,traffic:50,noise:55,energy:380,incidents:3,transit:6,pedestrian:22},
+  haight:{aqi:32,traffic:35,noise:60,energy:290,incidents:4,transit:7,pedestrian:20},
+  marina:{aqi:25,traffic:40,noise:48,energy:340,incidents:2,transit:9,pedestrian:18},
+};
+
+function jitter(v){return Math.max(0,v+(Math.random()-.5)*v*.22|0);}
+function genNeighData(id){
+  const p=PROFILES[id]||PROFILES.downtown;
+  return {
+    aqi:jitter(p.aqi),traffic:jitter(p.traffic),noise:jitter(p.noise),
+    energy:jitter(p.energy),incidents:jitter(p.incidents),
+    transit:jitter(p.transit),pedestrian:jitter(p.pedestrian),
+    temp:Math.round(58+Math.random()*12),humidity:Math.round(60+Math.random()*25),
+    pm25:+(p.aqi*.35+Math.random()*5).toFixed(1),
+  };
+}
+function getWeeklyTrends(id){
+  const p=PROFILES[id]||PROFILES.downtown;
+  return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>{
+    const aqi=Math.max(10,p.aqi+(Math.sin(i)*12+Math.random()*8-4)|0);
+    const traffic=Math.max(10,p.traffic+(Math.cos(i)*15+Math.random()*10-5)|0);
+    const noise=Math.max(20,p.noise+(Math.random()*8-4)|0);
+    return {day:d,aqi,traffic,noise,health:calcHealth(aqi,traffic,noise,p.incidents)};
+  });
+}
+function getForecast(id){
+  const p=PROFILES[id]||PROFILES.downtown;
+  const now=new Date();
+  return Array.from({length:12},(_,i)=>{
+    const h=new Date(now.getTime()+(i+1)*3600000);
+    const lbl=(h.getHours()%12||12)+(h.getHours()<12?'am':'pm');
+    const f=1+Math.sin((h.getHours()-6)*Math.PI/12)*.3;
+    return {time:lbl,aqi:Math.max(10,Math.round(p.aqi*f+Math.random()*8-4)),traffic:Math.max(5,Math.round(p.traffic*f+Math.random()*10-5))};
+  });
+}
+
+const REPORTS_INIT=[
+  {id:1,title:'Pothole on Market & 5th',category:'Road',severity:'high',neigh:'downtown',time:1735200000,upvotes:34,body:'Large pothole causing vehicle damage. Multiple incidents reported this week.'},
+  {id:2,title:'Broken streetlight near Mission Dolores',category:'Lighting',severity:'medium',neigh:'mission',time:1735186000,upvotes:21,body:'Street has been dark for 3 nights. Safety concern for pedestrians.'},
+  {id:3,title:'Illegal dumping near SoMa alley',category:'Waste',severity:'medium',neigh:'soma',time:1735150000,upvotes:18,body:'Large pile of debris blocking sidewalk. Foul odor reported.'},
+  {id:4,title:'Water main leak on Sacramento St',category:'Utilities',severity:'high',neigh:'nob_hill',time:1735120000,upvotes:45,body:'Active water leak. Street flooding in progress. SFPUC notified.'},
+  {id:5,title:'New bike lane needed on Haight St',category:'Transit',severity:'low',neigh:'haight',time:1735090000,upvotes:62,body:'High cyclist traffic but no protected lane. Please add infrastructure.'},
+  {id:6,title:'Park benches need repair in Marina Green',category:'Parks',severity:'low',neigh:'marina',time:1735060000,upvotes:15,body:'Several benches broken or missing slats. Affects elderly visitors.'},
+];
+const TRANSIT_DATA=[
+  {route:'BART',line:'Blue Line',dest:'Embarcadero',mins:3,color:'#00C9FF'},
+  {route:'MUNI',line:'N Judah',dest:'Castro',mins:7,color:'#7B61FF'},
+  {route:'BUS',line:'38-Geary',dest:'Richmond',mins:2,color:'#FF6D00'},
+  {route:'BART',line:'Red Line',dest:'Daly City',mins:11,color:'#FF3B5C'},
+  {route:'MUNI',line:'J Church',dest:'Balboa Park',mins:14,color:'#00FFB2'},
+];
+const SUSTAINABILITY={score:72,solar:38,ev:156,recycling:64,trees:12400,water_saved:2.4};
+const ALERTS_INIT=[
+  {id:1,icon:'🚨',text:'Air quality alert: Downtown AQI elevated to 68. Sensitive groups should limit outdoor exposure.',time:'9 min ago',unread:true},
+  {id:2,icon:'🚗',text:'Major traffic incident on I-80 westbound. Expect 25-min delays through downtown.',time:'22 min ago',unread:true},
+  {id:3,icon:'⚡',text:'Grid peak demand alert. City conservation request in effect until 9pm.',time:'1 hr ago',unread:false},
+  {id:4,icon:'🌧️',text:'Fog advisory: Marine layer through noon. Visibility reduced in Mission and Haight.',time:'2 hr ago',unread:false},
+];
+
+function calcHealth(aqi,traffic,noise,incidents){
+  return Math.round(
+    Math.max(0,100-(aqi/300)*100)*.35+
+    Math.max(0,100-(traffic/120)*100)*.20+
+    Math.max(0,100-(noise/100)*100)*.25+
+    Math.max(0,100-(incidents/15)*100)*.20
+  );
+}
+function calcHealthFull(d){return calcHealth(d.aqi||50,d.traffic||45,d.noise||55,d.incidents||3);}
+function scoreColor(s){return s>=75?'#00E676':s>=50?'#FFD600':'#FF3B5C';}
+function scoreLabel(s){return s>=75?'Excellent':s>=60?'Good':s>=45?'Fair':'Poor';}
+function aqiColor(v){return v<=50?'#00E676':v<=100?'#FFD600':v<=150?'#FF6D00':'#FF3B5C';}
+function aqiLabel(v){return v<=50?'Good':v<=100?'Moderate':v<=150?'Unhealthy (Sensitive)':'Unhealthy';}
+function layerColor(l,v){
+  if(l==='aqi')return aqiColor(v);
+  if(l==='traffic')return v<40?'#00E676':v<65?'#FFD600':'#FF3B5C';
+  if(l==='noise')return v<50?'#00E676':v<65?'#FFD600':'#FF3B5C';
+  return '#00C9FF';
+}
+function relTime(ts){
+  const d=(Date.now()/1000)-ts;
+  if(d<60)return 'just now';
+  if(d<3600)return `${(d/60)|0}m ago`;
+  if(d<86400)return `${(d/3600)|0}h ago`;
+  return `${(d/86400)|0}d ago`;
+}
+function glowClass(s){return s>=75?'score-glow-green':s>=50?'score-glow-yellow':'score-glow-red';}
+function advisoryLevel(aqi,noise){return aqi<=50&&noise<=55?'safe':aqi<=100&&noise<=70?'caution':'unsafe';}
+
+const CityCtx=createContext(null);
+function CityProvider({children}){
+  const [selId,setSelId]=useState('downtown');
+  const [data,setData]=useState(()=>{const d={};NEIGHBORHOODS.forEach(n=>{d[n.id]=genNeighData(n.id);});return d;});
+  const [reports,setReports]=useState(REPORTS_INIT);
+  const [favorites,setFavorites]=useState([]);
+  const [alerts]=useState(ALERTS_INIT);
+  const groqKey=localStorage.getItem('groq_key')||'';
+
+  useEffect(()=>{
+    const t=setInterval(()=>{
+      setData(prev=>{
+        const next={...prev};
+        const id=NEIGHBORHOODS[Math.floor(Math.random()*NEIGHBORHOODS.length)].id;
+        next[id]=genNeighData(id);
+        return next;
+      });
+    },12000);
+    return ()=>clearInterval(t);
+  },[]);
+
+  const addReport=useCallback(r=>{
+    setReports(prev=>[{...r,id:Date.now(),time:Date.now()/1000,upvotes:0},...prev]);
+    window.CityToast('Report submitted! Thank you.','success');
+  },[]);
+  const toggleFav=useCallback(id=>{
+    setFavorites(prev=>prev.includes(id)?prev.filter(f=>f!==id):[...prev,id]);
+  },[]);
+
+  const selData=data[selId]||genNeighData(selId);
+  const selNeigh=NEIGHBORHOODS.find(n=>n.id===selId)||NEIGHBORHOODS[0];
+  const health=calcHealthFull(selData);
+  return (
+    <CityCtx.Provider value={{selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav}}>
+      {children}
+    </CityCtx.Provider>
+  );
+}
+
+async function callGroq(key,prompt,sys){
+  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[
+      {role:'system',content:sys||'You are CityPulse AI, a smart city assistant. Be concise, data-driven, helpful. 2-3 sentences max.'},
+      {role:'user',content:prompt}
+    ],max_tokens:200}),
+  });
+  const j=await r.json();
+  return j.choices?.[0]?.message?.content||'';
+}
+async function genBriefing(key,data,neigh){
+  const h=calcHealthFull(data);
+  const fallback=`Good morning! ${neigh.name} is showing ${aqiLabel(data.aqi)} air quality (AQI ${data.aqi}). Traffic is flowing at ${data.traffic}mph average. Neighborhood health score: ${h}/100 — ${scoreLabel(h)} conditions today.`;
+  if(!key)return fallback;
+  try{return await callGroq(key,`Neighborhood: ${neigh.name}. AQI: ${data.aqi}, Traffic: ${data.traffic}mph, Noise: ${data.noise}dB, Temp: ${data.temp}°F, Health Score: ${h}/100. Generate a smart morning briefing for residents.`);}
+  catch{return fallback;}
+}
+async function genEcoTip(key,data){
+  const fallback='Today is a great day to walk or bike — air quality is favorable and traffic is moderate. Small individual actions create significant city-wide environmental impact.';
+  if(!key)return fallback;
+  try{return await callGroq(key,`City AQI: ${data.aqi}, Energy: ${data.energy}MW, Solar: ${SUSTAINABILITY.solar}%. Give one specific actionable eco tip for today.`);}
+  catch{return fallback;}
+}
+async function genCommuteRec(key,data){
+  const cond=data.traffic<40?'Clear roads — great time to drive.':data.traffic<60?'Moderate congestion — consider transit.':'Heavy traffic — strongly recommend BART or MUNI.';
+  const fallback=`Traffic is at ${data.traffic}mph average. ${cond}`;
+  if(!key)return fallback;
+  try{return await callGroq(key,`Traffic: ${data.traffic}mph, Transit wait: ${data.transit}min, AQI: ${data.aqi}. Best commute option right now?`);}
+  catch{return fallback;}
+}
+
+function LiveClock(){
+  const [t,setT]=useState('');
+  useEffect(()=>{
+    const u=()=>setT(new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    u();const id=setInterval(u,1000);return ()=>clearInterval(id);
+  },[]);
+  return <span className="nav-clock">{t}</span>;
+}
+
+function NotifBell({alerts}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef(null);
+  const unread=alerts.filter(a=>a.unread).length;
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',h);
+    return ()=>document.removeEventListener('mousedown',h);
+  },[]);
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <div className="icon-btn" onClick={()=>setOpen(p=>!p)} title="Notifications">
+        🔔{unread>0&&<span className="badge">{unread}</span>}
+      </div>
+      {open&&(
+        <div className="notif-dropdown">
+          <div className="notif-header">
+            <span>Notifications</span>
+            <span style={{fontSize:11,color:'var(--accent)',cursor:'pointer'}}>Mark all read</span>
+          </div>
+          {alerts.map(a=>(
+            <div key={a.id} className={`notif-item${a.unread?' notif-unread':''}`}>
+              <span className="notif-icon-cell">{a.icon}</span>
+              <div>
+                <div className="notif-text">{a.text}</div>
+                <div className="notif-time">{a.time}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KbdOverlay({onClose}){
+  const shortcuts=[
+    ['1 – 6','Switch between pages'],
+    ['?','Toggle keyboard shortcuts'],
+    ['Escape','Close overlays / modals'],
+    ['S','Open / close SOS panel'],
+    ['R','Trigger data refresh'],
+    ['C','Copy current neighborhood stats'],
+  ];
+  return (
+    <div className="kbd-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="kbd-box">
+        <div className="kbd-title">⌨️ Keyboard Shortcuts</div>
+        {shortcuts.map(([k,d])=>(
+          <div key={k} className="kbd-row">
+            <span style={{color:'var(--text2)',fontSize:13}}>{d}</span>
+            <span className="kbd-key">{k}</span>
+          </div>
+        ))}
+        <button className="btn btn-ghost btn-sm" style={{marginTop:20,width:'100%'}} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+function SosPanel({onClose}){
+  const items=[
+    {icon:'🚔',label:'Police (Non-Emergency)',sub:'415-553-0123'},
+    {icon:'🚒',label:'Fire Hazard Report',sub:'415-558-3268'},
+    {icon:'🚑',label:'Medical Emergency',sub:'Call 911'},
+    {icon:'⚡',label:'PG&E Power Outage',sub:'1-800-743-5000'},
+    {icon:'💧',label:'SF Water Emergency',sub:'415-551-3000'},
+  ];
+  return (
+    <div className="sos-panel">
+      <div className="sos-title">🚨 Emergency & City Services</div>
+      {items.map(it=>(
+        <div key={it.label} className="sos-item" onClick={()=>{window.CityToast(`Connecting to ${it.label.split(' ')[0]}…`,'danger',2000);onClose();}}>
+          <span style={{fontSize:22,flexShrink:0}}>{it.icon}</span>
+          <div>
+            <div style={{fontSize:13,fontWeight:600}}>{it.label}</div>
+            <div style={{fontSize:11,color:'var(--text2)'}}>{it.sub}</div>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-ghost btn-sm" style={{width:'100%',marginTop:4}} onClick={onClose}>Close</button>
+    </div>
+  );
+}
+
+function Ticker({data}){
+  const items=NEIGHBORHOODS.map(n=>{const d=data[n.id]||{aqi:50,traffic:45};return {name:n.name,aqi:d.aqi,traffic:d.traffic};});
+  const doubled=[...items,...items];
+  return (
+    <div className="ticker-bar">
+      <div className="ticker-label">LIVE <span style={{width:6,height:6,borderRadius:'50%',background:'var(--ok)',display:'inline-block',animation:'blink 1.5s ease infinite'}}></span></div>
+      <div className="ticker-track">
+        <div className="ticker-inner">
+          {doubled.map((it,i)=>(
+            <span key={i} className="ticker-item">
+              <span style={{color:'var(--text)',fontWeight:600}}>{it.name}</span>
+              <span style={{color:'var(--text3)'}}>AQI</span>
+              <span style={{color:aqiColor(it.aqi||0),fontWeight:600}}>{it.aqi}</span>
+              <span style={{color:'var(--text3)'}}>Traffic</span>
+              <span style={{fontWeight:600}}>{it.traffic}mph</span>
+              <span className="ticker-sep">|</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AlertBanner({alerts}){
+  const active=alerts.filter(a=>a.unread);
+  if(!active.length)return null;
+  return (
+    <div className="alert-banner">
+      <span>{active[0].icon}</span>
+      <span style={{fontSize:13}}>{active[0].text}</span>
+      {active.length>1&&<span style={{fontSize:11,color:'var(--accent)',marginLeft:8,flexShrink:0}}>+{active.length-1} more</span>}
+    </div>
+  );
+}
+
+function HealthGauge({score}){
+  const color=scoreColor(score);
+  const r=70,cx=80,cy=80,circ=2*Math.PI*r;
+  const dash=(score/100)*circ;
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+      <svg width="160" height="160" className={glowClass(score)}>
+        <defs>
+          <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity=".9"/>
+            <stop offset="100%" stopColor={color} stopOpacity=".4"/>
+          </linearGradient>
+        </defs>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth={10}/>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#sg)" strokeWidth={10}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`} style={{transition:'stroke-dasharray .8s ease'}}/>
+        <text x={cx} y={cy-4} textAnchor="middle" fill={color} fontSize="30" fontWeight="700" fontFamily="Space Grotesk">{score}</text>
+        <text x={cx} y={cy+16} textAnchor="middle" fill="#8896B3" fontSize="11" fontFamily="Inter">{scoreLabel(score)}</text>
+      </svg>
+      <div style={{fontSize:12,color:'var(--text2)',letterSpacing:'1px',textTransform:'uppercase'}}>Health Score</div>
+    </div>
+  );
+}
+
+function HealthAdvisory({data}){
+  const lvl=advisoryLevel(data.aqi,data.noise);
+  const cfg={
+    safe:{emoji:'🏃',title:'Great day for exercise!',text:`AQI is ${aqiLabel(data.aqi)} (${data.aqi}) and noise is manageable at ${data.noise}dB. Ideal for outdoor activity.`,color:'var(--ok)'},
+    caution:{emoji:'⚠️',title:'Exercise with caution',text:`AQI ${data.aqi} — sensitive groups should limit strenuous outdoor activity. Noise at ${data.noise}dB is elevated.`,color:'var(--warn)'},
+    unsafe:{emoji:'😷',title:'Stay indoors recommended',text:`Air quality is ${aqiLabel(data.aqi)} (AQI ${data.aqi}). Avoid prolonged outdoor exposure. Wear a mask if going out.`,color:'var(--danger)'},
+  }[lvl];
+  return (
+    <div className={`advisory-card ${lvl}`}>
+      <div className="advisory-emoji">{cfg.emoji}</div>
+      <div>
+        <div className="advisory-title" style={{color:cfg.color}}>{cfg.title}</div>
+        <div className="advisory-text">{cfg.text}</div>
+      </div>
+    </div>
+  );
+}
+
+function AIBriefing({data,neigh,groqKey}){
+  const [text,setText]=useState('');
+  const [loading,setLoading]=useState(false);
+  const neighRef=useRef(null);
+
+  const generate=useCallback(async()=>{
+    setLoading(true);setText('');
+    const result=await genBriefing(groqKey,data,neigh);
+    let i=0;
+    const iv=setInterval(()=>{setText(result.slice(0,i));i+=3;if(i>result.length){setText(result);clearInterval(iv);setLoading(false);}},18);
+  },[data,neigh,groqKey]);
+
+  useEffect(()=>{
+    if(neighRef.current!==neigh.id){neighRef.current=neigh.id;generate();}
+  },[neigh.id]);
+
+  return (
+    <div className="ai-card">
+      <div className="ai-card-inner">
+        <div className="ai-tag">
+          <div className="ai-dot"></div>
+          AI Morning Briefing
+          {groqKey&&<span style={{marginLeft:'auto',fontSize:10,color:'var(--accent3)'}}>Powered by Groq</span>}
+        </div>
+        <div className="ai-text">{text||<span style={{color:'var(--text2)'}}>Generating briefing…</span>}{loading&&<span className="typing-cursor"/>}</div>
+        <div style={{marginTop:14,display:'flex',gap:8}}>
+          <button className="btn btn-ghost btn-sm" onClick={generate} disabled={loading}>
+            <span className={loading?'spin':''}>⟳</span> Refresh
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={()=>{if(text){navigator.clipboard.writeText(text);window.CityToast('Briefing copied!','success');}}}>
+            📋 Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EcoTip({data,groqKey}){
+  const [tip,setTip]=useState('');
+  useEffect(()=>{genEcoTip(groqKey,data).then(setTip);},[]);
+  return (
+    <div className="eco-card">
+      <div className="eco-tag">🌿 Eco Tip of the Day</div>
+      <div style={{fontSize:13,lineHeight:1.65,color:'var(--text)'}}>{tip||'Loading eco tip…'}</div>
+    </div>
+  );
+}
+
+function StatCards({data}){
+  const trafficSub=data.traffic<40?'Clear':data.traffic<60?'Moderate':'Heavy';
+  const cards=[
+    {key:'aqi',label:'Air Quality Index',value:data.aqi,unit:'AQI',color:aqiColor(data.aqi),sub:aqiLabel(data.aqi),cls:'aqi',pct:Math.min(100,data.aqi/3)},
+    {key:'traffic',label:'Traffic Flow',value:data.traffic,unit:'mph',color:layerColor('traffic',data.traffic),sub:trafficSub,cls:'traffic',pct:Math.min(100,data.traffic/1.2)},
+    {key:'noise',label:'Noise Level',value:data.noise,unit:'dB',color:layerColor('noise',data.noise),sub:data.noise<50?'Quiet':data.noise<65?'Moderate':'Loud',cls:'noise',pct:Math.min(100,data.noise)},
+    {key:'energy',label:'Energy Usage',value:data.energy,unit:'MW',color:'var(--accent3)',sub:'Grid demand',cls:'energy',pct:Math.min(100,data.energy/10)},
+  ];
+  return (
+    <div className="stats-grid">
+      {cards.map(c=>(
+        <div key={c.key} className={`stat-card ${c.cls}`}>
+          <div className="stat-name">{c.label}</div>
+          <div style={{marginTop:8}}><span className="stat-num" style={{color:c.color}}>{c.value}</span><span className="stat-unit">{c.unit}</span></div>
+          <div style={{fontSize:11,color:c.color,opacity:.8,marginTop:4}}>{c.sub}</div>
+          <div style={{marginTop:10}}><div className="prog-bar-wrap"><div className="prog-bar" style={{width:`${c.pct}%`,background:c.color}}></div></div></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ForecastChart({id}){
+  const forecast=useMemo(()=>getForecast(id),[id]);
+  return (
+    <div>
+      <div className="card-title">📈 12-Hour Forecast</div>
+      <div style={{height:155}}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={forecast} margin={{top:5,right:5,left:-20,bottom:0}}>
+            <defs>
+              <linearGradient id="aqiFG" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#00C9FF" stopOpacity={0.35}/><stop offset="95%" stopColor="#00C9FF" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="trafFG" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#7B61FF" stopOpacity={0.35}/><stop offset="95%" stopColor="#7B61FF" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+            <XAxis dataKey="time" tick={{fill:'#8896B3',fontSize:10}} tickLine={false} axisLine={false}/>
+            <YAxis tick={{fill:'#8896B3',fontSize:10}} tickLine={false} axisLine={false}/>
+            <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+            <Area type="monotone" dataKey="aqi" name="AQI" stroke="#00C9FF" fill="url(#aqiFG)" strokeWidth={2} dot={false}/>
+            <Area type="monotone" dataKey="traffic" name="Traffic" stroke="#7B61FF" fill="url(#trafFG)" strokeWidth={2} dot={false}/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function TrendCharts({id}){
+  const trends=useMemo(()=>getWeeklyTrends(id),[id]);
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="card">
+        <div className="card-title">📊 AQI This Week</div>
+        <div style={{height:190}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trends} margin={{top:5,right:5,left:-20,bottom:0}}>
+              <defs>
+                <linearGradient id="aqiW" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00C9FF" stopOpacity={0.4}/><stop offset="95%" stopColor="#00C9FF" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+              <XAxis dataKey="day" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+              <YAxis tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+              <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+              <Area type="monotone" dataKey="aqi" stroke="#00C9FF" fill="url(#aqiW)" strokeWidth={2} dot={false}/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-title">🚗 Traffic This Week</div>
+        <div style={{height:190}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={trends} margin={{top:5,right:5,left:-20,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+              <XAxis dataKey="day" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+              <YAxis tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+              <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+              <Bar dataKey="traffic" fill="#7B61FF" radius={[4,4,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommunityFeed({reports,onNew}){
+  const [voted,setVoted]=useState({});
+  const [counts,setCounts]=useState(()=>Object.fromEntries(reports.map(r=>[r.id,r.upvotes])));
+  const [plusOne,setPlusOne]=useState(null);
+
+  useEffect(()=>{
+    setCounts(prev=>{
+      const next={...prev};
+      reports.forEach(r=>{if(!(r.id in next))next[r.id]=r.upvotes;});
+      return next;
+    });
+  },[reports]);
+
+  const upvote=useCallback((id,e)=>{
+    if(voted[id])return;
+    setVoted(v=>({...v,[id]:true}));
+    setCounts(c=>({...c,[id]:(c[id]||0)+1}));
+    setPlusOne(id);setTimeout(()=>setPlusOne(null),950);
+    window.CityToast('Vote recorded!','success',2000);
+    const btn=e.currentTarget;
+    btn.classList.remove('pop-scale');void btn.offsetWidth;btn.classList.add('pop-scale');
+  },[voted]);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+        <div style={{fontSize:16,fontWeight:700}}>💬 Community Reports</div>
+        <button className="btn btn-primary btn-sm" onClick={onNew}>+ Report Issue</button>
+      </div>
+      {reports.slice(0,6).map(r=>(
+        <div key={r.id} className="report-item">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span className={`report-cat severity-${r.severity}`}>{r.category}</span>
+              <span style={{fontSize:13,fontWeight:600}}>{r.title}</span>
+            </div>
+            <span style={{fontSize:11,color:'var(--text3)',fontFamily:'JetBrains Mono',whiteSpace:'nowrap',marginLeft:8}}>{relTime(r.time)}</span>
+          </div>
+          <div style={{fontSize:12,color:'var(--text2)',marginBottom:10,lineHeight:1.5}}>{r.body}</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:11,color:'var(--text3)'}}>📍 {NEIGHBORHOODS.find(n=>n.id===r.neigh)?.name||r.neigh}</span>
+            <button className={`upvote-btn${voted[r.id]?' voted':''}`} onClick={e=>upvote(r.id,e)}>
+              {plusOne===r.id&&<span className="float-plus">+1</span>}
+              👍 {counts[r.id]||0}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportModal({onClose,onSubmit}){
+  const [form,setForm]=useState({title:'',category:'Road',severity:'medium',body:'',neigh:'downtown'});
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const submit=e=>{
+    e.preventDefault();
+    if(!form.title.trim()){window.CityToast('Please enter a title','warning');return;}
+    onSubmit(form);onClose();
+  };
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal">
+        <div className="modal-title">
+          Report a City Issue
+          <span style={{cursor:'pointer',color:'var(--text2)',fontSize:20}} onClick={onClose}>✕</span>
+        </div>
+        <form onSubmit={submit}>
+          <div className="form-group">
+            <label className="label">Issue Title</label>
+            <input className="input" value={form.title} onChange={set('title')} placeholder="Brief description of the issue"/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div className="form-group">
+              <label className="label">Category</label>
+              <select className="input" value={form.category} onChange={set('category')}>
+                {['Road','Lighting','Waste','Utilities','Transit','Parks','Other'].map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">Severity</label>
+              <select className="input" value={form.severity} onChange={set('severity')}>
+                <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="label">Neighborhood</label>
+            <select className="input" value={form.neigh} onChange={set('neigh')}>
+              {NEIGHBORHOODS.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="label">Details</label>
+            <textarea className="input" value={form.body} onChange={set('body')} rows={3} placeholder="More details about the issue…" style={{resize:'vertical'}}/>
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary">Submit Report</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CityMap({selId,data,layer}){
+  const mapRef=useRef(null);
+  const instRef=useRef(null);
+  const markersRef=useRef([]);
+
+  useEffect(()=>{
+    if(instRef.current)return;
+    instRef.current=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([37.78,-122.43],13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(instRef.current);
+  },[]);
+
+  useEffect(()=>{
+    if(!instRef.current)return;
+    markersRef.current.forEach(m=>m.remove());
+    markersRef.current=[];
+    NEIGHBORHOODS.forEach(n=>{
+      const d=data[n.id]||{aqi:50,traffic:45,noise:55,energy:400,incidents:3,pedestrian:20,transit:5};
+      const val=d[layer]??d.aqi;
+      const color=layerColor(layer,val);
+      const radius=Math.min(38,Math.max(9,val*(layer==='pedestrian'?.6:.25)));
+      const m=L.circleMarker([n.lat,n.lng],{radius,color,fillColor:color,fillOpacity:.35,weight:2,opacity:.8}).addTo(instRef.current);
+      m.bindPopup(`<div style="background:#0A1628;color:#F0F4FF;padding:12px;border-radius:10px;font-family:'Space Grotesk',sans-serif;min-width:160px;border:1px solid rgba(0,201,255,.2)">
+        <b style="color:${n.color};font-size:14px">${n.name}</b><br/><hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:6px 0"/>
+        <span style="color:#8896B3;font-size:11px">AQI</span> <span style="color:${aqiColor(d.aqi)};font-weight:700">${d.aqi}</span><br/>
+        <span style="color:#8896B3;font-size:11px">Traffic</span> <span style="font-weight:600">${d.traffic}mph</span><br/>
+        <span style="color:#8896B3;font-size:11px">Noise</span> <span style="font-weight:600">${d.noise}dB</span><br/>
+        <span style="color:#8896B3;font-size:11px">Score</span> <span style="color:${scoreColor(calcHealthFull(d))};font-weight:700">${calcHealthFull(d)}/100</span>
+      </div>`);
+      if(n.id===selId){m.openPopup();instRef.current.panTo([n.lat,n.lng],{animate:true,duration:.5});}
+      markersRef.current.push(m);
+    });
+  },[selId,data,layer]);
+
+  return <div ref={mapRef} style={{height:'440px',width:'100%'}}/>;
+}
+
+function TransitBoard(){
+  return (
+    <div className="card">
+      <div className="card-title">🚌 Live Transit</div>
+      {TRANSIT_DATA.map((t,i)=>(
+        <div key={i} className="transit-row">
+          <div className="route-badge" style={{background:t.color+'22',color:t.color,border:`1px solid ${t.color}44`}}>{t.route}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600}}>{t.line}</div>
+            <div style={{fontSize:11,color:'var(--text2)'}}>{t.dest}</div>
+          </div>
+          <div><span className="transit-min">{t.mins}</span><span style={{fontSize:11,color:'var(--text2)',marginLeft:2}}>min</span></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SustainabilityCard(){
+  const s=SUSTAINABILITY;
+  const r=50,cx=60,cy=60,circ=2*Math.PI*r,dash=(s.score/100)*circ;
+  const metrics=[
+    {label:'Solar Adoption',value:s.solar,pct:s.solar,unit:'%',color:'#FFD600'},
+    {label:'EV Charging Stations',value:s.ev,pct:s.ev/2,unit:'',color:'#00E676'},
+    {label:'Recycling Rate',value:s.recycling,pct:s.recycling,unit:'%',color:'#00FFB2'},
+    {label:'Urban Tree Coverage',value:`${(s.trees/1000).toFixed(1)}k`,pct:82,unit:'',color:'#7B61FF'},
+  ];
+  return (
+    <div className="card">
+      <div className="card-title">🌿 Sustainability Score</div>
+      <div style={{display:'flex',alignItems:'center',gap:20}}>
+        <svg width="120" height="120" className="score-glow-green" style={{flexShrink:0}}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth={10}/>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#00FFB2" strokeWidth={10}
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            transform={`rotate(-90 ${cx} ${cy})`} style={{transition:'stroke-dasharray .8s ease'}}/>
+          <text x={cx} y={cy+6} textAnchor="middle" fill="#00FFB2" fontSize="22" fontWeight="700" fontFamily="Space Grotesk">{s.score}</text>
+        </svg>
+        <div style={{flex:1,minWidth:0}}>
+          {metrics.map(m=>(
+            <div key={m.label} style={{marginBottom:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)',marginBottom:4}}>
+                <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.label}</span>
+                <span style={{color:'var(--text)',fontFamily:'JetBrains Mono',flexShrink:0,marginLeft:8}}>{m.value}{m.unit}</span>
+              </div>
+              <div className="prog-bar-wrap"><div className="prog-bar" style={{width:`${Math.min(100,m.pct)}%`,background:m.color}}></div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NeighborhoodComparison({data}){
+  const rows=useMemo(()=>NEIGHBORHOODS.map(n=>{
+    const d=data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3};
+    return {...n,d,health:calcHealthFull(d)};
+  }).sort((a,b)=>b.health-a.health),[data]);
+
+  const copy=()=>{
+    const txt=rows.map((r,i)=>`${i+1}. ${r.name}: ${r.health}/100 (AQI ${r.d.aqi}, Traffic ${r.d.traffic}mph)`).join('\n');
+    navigator.clipboard.writeText(txt);
+    window.CityToast('Rankings copied!','success');
+  };
+
+  return (
+    <div className="card" style={{position:'relative'}}>
+      <div className="card-title">🏆 Neighborhood Rankings</div>
+      <button className="copy-btn" onClick={copy}>📋 Copy</button>
+      <table className="compare-table">
+        <thead><tr><th>#</th><th>Neighborhood</th><th>Score</th><th>AQI</th><th>Traffic</th><th style={{minWidth:80}}>Bar</th></tr></thead>
+        <tbody>
+          {rows.map((r,i)=>(
+            <tr key={r.id}>
+              <td style={{color:'var(--text3)',fontFamily:'JetBrains Mono',fontSize:12}}>{i+1}</td>
+              <td style={{fontWeight:700,color:r.color}}>{r.name}</td>
+              <td style={{fontFamily:'JetBrains Mono',color:scoreColor(r.health),fontWeight:700}}>{r.health}</td>
+              <td style={{color:aqiColor(r.d.aqi),fontFamily:'JetBrains Mono'}}>{r.d.aqi}</td>
+              <td style={{fontFamily:'JetBrains Mono',color:'var(--text2)'}}>{r.d.traffic}</td>
+              <td><div className="prog-bar-wrap"><div className="compare-bar" style={{width:`${r.health}%`,background:scoreColor(r.health)}}></div></div></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RadarCard({data}){
+  const vals=[
+    {metric:'Air Quality',val:Math.max(0,100-(data.aqi/3))},
+    {metric:'Traffic',val:Math.max(0,100-(data.traffic/1.2))},
+    {metric:'Noise',val:Math.max(0,100-data.noise)},
+    {metric:'Safety',val:Math.max(0,100-(data.incidents*7))},
+    {metric:'Walkability',val:Math.min(100,(data.pedestrian||10)*2)},
+    {metric:'Transit',val:Math.max(0,100-((data.transit||5)*8))},
+  ];
+  return (
+    <div className="card">
+      <div className="card-title">🎯 Neighborhood Profile</div>
+      <div className="radar-wrap">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="75%" data={vals}>
+            <PolarGrid stroke="rgba(255,255,255,.08)"/>
+            <PolarAngleAxis dataKey="metric" tick={{fill:'#8896B3',fontSize:11}}/>
+            <Radar dataKey="val" stroke="#00C9FF" fill="#00C9FF" fillOpacity={0.15} strokeWidth={2}/>
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function CommuteAdvisor({data,groqKey}){
+  const [rec,setRec]=useState('');
+  const [loading,setLoading]=useState(false);
+  useEffect(()=>{genCommuteRec(groqKey,data).then(setRec);},[data.traffic]);
+  const refresh=async()=>{setLoading(true);const r=await genCommuteRec(groqKey,data);setRec(r);setLoading(false);};
+  return (
+    <div className="card">
+      <div className="card-title">🧭 AI Commute Advisor</div>
+      <div style={{fontSize:13,color:'var(--text)',lineHeight:1.7,minHeight:42}}>{rec||'Analyzing commute options…'}</div>
+      <button className="btn btn-ghost btn-sm" style={{marginTop:12}} onClick={refresh}>
+        <span className={loading?'spin':''}>⟳</span> Refresh
+      </button>
+    </div>
+  );
+}
+
+// ── PAGES ────────────────────────────────────────────────
+
+function DashboardPage(){
+  const {selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav}=useContext(CityCtx);
+  const [showModal,setShowModal]=useState(false);
+  return (
+    <div className="page-wrap">
+      {alerts.some(a=>a.unread)&&<AlertBanner alerts={alerts}/>}
+      <div className="main">
+        <div className="neigh-selector">
+          {NEIGHBORHOODS.map(n=>(
+            <button key={n.id} className={`neigh-btn${selId===n.id?' active':''}`}
+              style={selId===n.id?{borderColor:n.color,color:n.color,background:n.color+'18'}:{}}
+              onClick={()=>setSelId(n.id)}>
+              <span className="fav-star" style={{color:favorites.includes(n.id)?'gold':'var(--text3)'}}
+                onClick={e=>{e.stopPropagation();toggleFav(n.id);window.CityToast(favorites.includes(n.id)?`Removed ${n.name} from favorites`:`${n.name} added to favorites!`,favorites.includes(n.id)?'info':'success',2000);}}>
+                {favorites.includes(n.id)?'★':'☆'}
+              </span>
+              {n.name}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:16,marginBottom:16,alignItems:'start'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <div className="card" style={{display:'flex',flexDirection:'column',alignItems:'center',padding:24}}>
+              <HealthGauge score={health}/>
+              <div style={{marginTop:16,width:'100%'}}><HealthAdvisory data={selData}/></div>
+            </div>
+            <TransitBoard/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <AIBriefing data={selData} neigh={selNeigh} groqKey={groqKey}/>
+            <StatCards data={selData}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <div className="card"><ForecastChart id={selId}/></div>
+              <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                <EcoTip data={selData} groqKey={groqKey}/>
+                <CommuteAdvisor data={selData} groqKey={groqKey}/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{marginBottom:16}}><TrendCharts id={selId}/></div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <CommunityFeed reports={reports} onNew={()=>setShowModal(true)}/>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <SustainabilityCard/>
+            <NeighborhoodComparison data={data}/>
+          </div>
+        </div>
+      </div>
+      {showModal&&<ReportModal onClose={()=>setShowModal(false)} onSubmit={addReport}/>}
+    </div>
+  );
+}
+
+function MapPage(){
+  const {selId,setSelId,data}=useContext(CityCtx);
+  const [layer,setLayer]=useState('aqi');
+  return (
+    <div className="page-wrap">
+      <div className="main">
+        <div className="section-title"><span>🗺️</span> Live City Map</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+          {LAYERS.map(l=>(
+            <button key={l.id} className={`layer-toggle${layer===l.id?' active':''}`} onClick={()=>setLayer(l.id)}>{l.icon} {l.name}</button>
+          ))}
+        </div>
+        <div className="map-wrap"><CityMap selId={selId} data={data} layer={layer}/></div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,marginTop:16}}>
+          {NEIGHBORHOODS.map(n=>{
+            const d=data[n.id]||{};
+            const val=d[layer]??d.aqi??0;
+            const h=calcHealthFull({aqi:d.aqi||50,traffic:d.traffic||45,noise:d.noise||55,incidents:d.incidents||3});
+            return (
+              <div key={n.id} className="card" style={{cursor:'pointer',borderColor:selId===n.id?n.color:'var(--border)'}}
+                onClick={()=>setSelId(n.id)}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                  <span style={{fontWeight:700,color:n.color}}>{n.name}</span>
+                  <span style={{fontFamily:'JetBrains Mono',fontSize:12,color:scoreColor(h)}}>{h}</span>
+                </div>
+                <div style={{fontSize:22,fontWeight:700,color:layerColor(layer,val),fontFamily:'JetBrains Mono'}}>{val}<span style={{fontSize:11,color:'var(--text2)',marginLeft:3}}>{LAYERS.find(l2=>l2.id===layer)?.unit}</span></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NeighborhoodPage(){
+  const {selId,setSelId,selData,selNeigh,health,groqKey,favorites,toggleFav}=useContext(CityCtx);
+  const isFav=favorites.includes(selId);
+  const copyStats=()=>{
+    const d=selData;
+    navigator.clipboard.writeText(`CityPulse — ${selNeigh.name}\nHealth Score: ${health}/100 (${scoreLabel(health)})\nAQI: ${d.aqi} (${aqiLabel(d.aqi)})\nTraffic: ${d.traffic}mph\nNoise: ${d.noise}dB\nEnergy: ${d.energy}MW\nTemp: ${d.temp}°F\nHumidity: ${d.humidity}%`);
+    window.CityToast('Stats copied to clipboard!','success');
+  };
+  return (
+    <div className="page-wrap">
+      <div className="main">
+        <div className="neigh-selector">
+          {NEIGHBORHOODS.map(n=>(
+            <button key={n.id} className={`neigh-btn${selId===n.id?' active':''}`}
+              style={selId===n.id?{borderColor:n.color,color:n.color,background:n.color+'18'}:{}}
+              onClick={()=>setSelId(n.id)}>{n.name}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+          <div style={{fontSize:26,fontWeight:700,color:selNeigh.color}}>{selNeigh.name}</div>
+          <span className="fav-star" style={{fontSize:22,color:isFav?'gold':'var(--text3)'}}
+            onClick={()=>{toggleFav(selId);window.CityToast(isFav?'Removed from favorites':`${selNeigh.name} added to favorites!`,isFav?'info':'success');}}>
+            {isFav?'★':'☆'}
+          </span>
+          <div className="freshness"><div className="fresh-dot"></div>Live data</div>
+          <button className="btn btn-ghost btn-sm" style={{marginLeft:'auto'}} onClick={copyStats}>📋 Copy Stats</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'260px 1fr',gap:16,alignItems:'start'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <div className="card" style={{display:'flex',flexDirection:'column',alignItems:'center',padding:24}}>
+              <HealthGauge score={health}/>
+            </div>
+            <div className="card">
+              <div className="card-title">🌡️ Current Conditions</div>
+              {[
+                {label:'Temperature',v:`${selData.temp}°F`,icon:'🌡️'},
+                {label:'Humidity',v:`${selData.humidity}%`,icon:'💧'},
+                {label:'PM2.5',v:`${selData.pm25} μg/m³`,icon:'🌫️'},
+                {label:'Foot Traffic',v:`${selData.pedestrian}k/hr`,icon:'🚶'},
+                {label:'Active Incidents',v:selData.incidents,icon:'🚨'},
+              ].map(r=>(
+                <div key={r.label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,.04)',fontSize:13}}>
+                  <span style={{color:'var(--text2)'}}>{r.icon} {r.label}</span>
+                  <span style={{fontFamily:'JetBrains Mono',color:'var(--text)'}}>{r.v}</span>
+                </div>
+              ))}
+            </div>
+            <HealthAdvisory data={selData}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <StatCards data={selData}/>
+            <RadarCard data={selData}/>
+            <div className="card"><ForecastChart id={selId}/></div>
+            <CommuteAdvisor data={selData} groqKey={groqKey}/>
+          </div>
+        </div>
+        <div style={{marginTop:16}}><TrendCharts id={selId}/></div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsPage(){
+  const {reports,addReport}=useContext(CityCtx);
+  const [showModal,setShowModal]=useState(false);
+  const [filter,setFilter]=useState('all');
+  const cats=['all','Road','Lighting','Waste','Utilities','Transit','Parks'];
+  const filtered=filter==='all'?reports:reports.filter(r=>r.category===filter);
+  return (
+    <div className="page-wrap">
+      <div className="main">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div className="section-title" style={{margin:0}}>💬 Community Reports</div>
+          <button className="btn btn-primary" onClick={()=>setShowModal(true)}>+ Report Issue</button>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+          {cats.map(c=>(
+            <button key={c} className={`layer-toggle${filter===c?' active':''}`} onClick={()=>setFilter(c)}>
+              {c==='all'?'All Categories':c}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <CommunityFeed reports={filtered} onNew={()=>setShowModal(true)}/>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <div className="card">
+              <div className="card-title">📊 Report Statistics</div>
+              {['high','medium','low'].map(s=>{
+                const cnt=reports.filter(r=>r.severity===s).length;
+                const color=s==='high'?'var(--danger)':s==='medium'?'var(--warn)':'var(--ok)';
+                return (
+                  <div key={s} style={{marginBottom:14}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:5}}>
+                      <span style={{color,textTransform:'capitalize',fontWeight:600}}>{s} Priority</span>
+                      <span style={{fontFamily:'JetBrains Mono',color:'var(--text)'}}>{cnt}</span>
+                    </div>
+                    <div className="prog-bar-wrap"><div className="prog-bar" style={{width:`${reports.length?cnt/reports.length*100:0}%`,background:color}}></div></div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="card">
+              <div className="card-title">🏘️ Reports by Neighborhood</div>
+              {NEIGHBORHOODS.map(n=>{
+                const cnt=reports.filter(r=>r.neigh===n.id).length;
+                return (
+                  <div key={n.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,.04)',fontSize:13}}>
+                    <span style={{color:n.color}}>{n.name}</span>
+                    <span style={{fontFamily:'JetBrains Mono',color:'var(--text2)'}}>{cnt} report{cnt!==1?'s':''}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      {showModal&&<ReportModal onClose={()=>setShowModal(false)} onSubmit={addReport}/>}
+    </div>
+  );
+}
+
+function InsightsPage(){
+  const {data}=useContext(CityCtx);
+  const allHealth=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),score:calcHealthFull(data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3})}));
+  const allAqi=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),aqi:(data[n.id]||{aqi:50}).aqi}));
+  const allEnergy=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),mw:(data[n.id]||{energy:400}).energy}));
+  return (
+    <div className="page-wrap">
+      <div className="main">
+        <div className="section-title"><span>🔍</span> City Insights</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+          <div className="card">
+            <div className="card-title">🏆 Health Scores by Neighborhood</div>
+            <div style={{height:210}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={allHealth} margin={{top:5,right:5,left:-20,bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+                  <XAxis dataKey="name" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <YAxis domain={[0,100]} tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+                  <Bar dataKey="score" fill="#00C9FF" radius={[4,4,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-title">🌬️ AQI Comparison</div>
+            <div style={{height:210}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={allAqi} margin={{top:5,right:5,left:-20,bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+                  <XAxis dataKey="name" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <YAxis tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+                  <Bar dataKey="aqi" fill="#7B61FF" radius={[4,4,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+        <div style={{marginBottom:16}}><NeighborhoodComparison data={data}/></div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <SustainabilityCard/>
+          <div className="card">
+            <div className="card-title">⚡ Energy by Neighborhood</div>
+            <div style={{height:210}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={allEnergy} margin={{top:5,right:5,left:-20,bottom:0}}>
+                  <defs>
+                    <linearGradient id="engG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#00FFB2" stopOpacity={0.35}/><stop offset="95%" stopColor="#00FFB2" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+                  <XAxis dataKey="name" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <YAxis tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+                  <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}/>
+                  <Area type="monotone" dataKey="mw" stroke="#00FFB2" fill="url(#engG)" strokeWidth={2}/>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LearnPage(){
+  const cards=[
+    {icon:'🌬️',title:'Understanding AQI',text:'Air Quality Index measures how clean or polluted your air is. AQI 0–50 is Good, 51–100 Moderate, 101–150 Unhealthy for Sensitive Groups, 151+ Unhealthy for all. Sensitive groups include children, elderly, and those with respiratory conditions.'},
+    {icon:'🏙️',title:'How Health Score Works',text:"CityPulse's neighborhood health score is a weighted composite: Air Quality (35%), Noise (25%), Traffic (20%), and Active Incidents (20%). All factors are normalized 0–100 where higher is always better."},
+    {icon:'🚗',title:'Reading Traffic Data',text:'Traffic speeds below 40mph indicate heavy congestion, 40–60mph is moderate flow, above 60mph is clear. CityPulse updates traffic data every 15 seconds via distributed loop detector networks across major arterials.'},
+    {icon:'🔊',title:'Noise Pollution Impact',text:'Noise above 65dB can impact sleep quality and cardiovascular health with long-term exposure. 55dB is typical urban background noise. CityPulse noise readings come from street-level acoustic sensor arrays.'},
+    {icon:'⚡',title:'City Energy Grid',text:'Energy consumption in megawatts (MW) reflects grid demand per neighborhood. Peaks occur 5–9pm on weekdays. During grid alerts, conservation requests help prevent rolling blackouts and reduce city carbon emissions.'},
+    {icon:'🌿',title:'Urban Sustainability',text:"San Francisco's sustainability goals include 100% renewable energy by 2030, net-zero emissions by 2040, and 80% waste diversion from landfills. CityPulse tracks your neighborhood's contribution to these targets."},
+  ];
+  return (
+    <div className="page-wrap">
+      <div className="main">
+        <div className="section-title"><span>📚</span> Learn About Your City</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:16}}>
+          {cards.map(c=>(
+            <div key={c.title} className="learn-card">
+              <div className="learn-icon">{c.icon}</div>
+              <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>{c.title}</div>
+              <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.65}}>{c.text}</div>
+            </div>
+          ))}
+        </div>
+        <div className="card" style={{marginTop:16}}>
+          <div className="card-title">💡 Data Sources</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginTop:8}}>
+            {[
+              {icon:'🌬️',label:'Air Quality',src:'EPA AQS Network + AirNow sensors'},
+              {icon:'🚗',label:'Traffic',src:'Caltrans & SF MTA loop detectors'},
+              {icon:'🔊',label:'Noise',src:'SF Noise Monitoring Network'},
+              {icon:'⚡',label:'Energy',src:'PG&E smart grid telemetry'},
+              {icon:'🚌',label:'Transit',src:'511 SF Bay GTFS real-time feed'},
+              {icon:'🚨',label:'Incidents',src:'SF Dept. of Emergency Management'},
+            ].map(d=>(
+              <div key={d.label} style={{background:'rgba(255,255,255,.03)',borderRadius:12,padding:'12px 14px'}}>
+                <div style={{fontSize:18,marginBottom:6}}>{d.icon}</div>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>{d.label}</div>
+                <div style={{fontSize:11,color:'var(--text2)',lineHeight:1.5}}>{d.src}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PAGES={dashboard:DashboardPage,map:MapPage,neighborhood:NeighborhoodPage,reports:ReportsPage,insights:InsightsPage,learn:LearnPage};
+
+function App(){
+  const [page,setPage]=useState('dashboard');
+  const [showKbd,setShowKbd]=useState(false);
+  const [showSos,setShowSos]=useState(false);
+  const {alerts,data,selData}=useContext(CityCtx);
+
+  useEffect(()=>{
+    const ids=['dashboard','map','neighborhood','reports','insights','learn'];
+    const h=e=>{
+      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+      const n=parseInt(e.key);
+      if(n>=1&&n<=6){const id=ids[n-1];setPage(id);window.CityToast(`${NAV[n-1].icon} ${NAV[n-1].label}`,'info',1500);}
+      if(e.key==='?')setShowKbd(p=>!p);
+      if(e.key==='Escape'){setShowKbd(false);setShowSos(false);}
+      if(e.key.toLowerCase()==='s'&&!showKbd)setShowSos(p=>!p);
+      if(e.key.toLowerCase()==='r'&&!showKbd)window.CityToast('City data refreshing…','info',2000);
+    };
+    document.addEventListener('keydown',h);
+    return ()=>document.removeEventListener('keydown',h);
+  },[showKbd]);
+
+  const PageComp=PAGES[page]||DashboardPage;
+
+  return (
+    <>
+      <nav className="nav">
+        <div className="nav-brand" onClick={()=>setPage('dashboard')}>CityPulse</div>
+        <div className="nav-tabs">
+          {NAV.map(n=>(
+            <button key={n.id} className={`nav-tab${page===n.id?' active':''}`} onClick={()=>setPage(n.id)}>
+              {n.icon} {n.label}
+            </button>
+          ))}
+        </div>
+        <div className="nav-right">
+          <div className="live-dot" title="Live data feed active"></div>
+          <LiveClock/>
+          <NotifBell alerts={alerts}/>
+          <div className="icon-btn" title="Keyboard shortcuts (?)" onClick={()=>setShowKbd(p=>!p)}>⌨️</div>
+        </div>
+      </nav>
+      <PageComp key={page}/>
+      <Ticker data={data}/>
+      <button className="sos-btn" title="Emergency & Services (S)" onClick={()=>setShowSos(p=>!p)}>SOS</button>
+      {showSos&&<SosPanel onClose={()=>setShowSos(false)}/>}
+      {showKbd&&<KbdOverlay onClose={()=>setShowKbd(false)}/>}
+    </>
+  );
+}
+
+function Root(){
+  return <CityProvider><App/></CityProvider>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Root));
+</script>
+</body>
+</html>
