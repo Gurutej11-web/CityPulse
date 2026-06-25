@@ -248,6 +248,15 @@ select.input option{background:var(--bg2)}
 
 /* RADAR */
 .radar-wrap{height:240px}
+
+/* GROQ KEY MODAL */
+.groq-prompt{background:linear-gradient(135deg,rgba(0,201,255,.08),rgba(123,97,255,.08));border:1px dashed rgba(0,201,255,.3);border-radius:12px;padding:16px;text-align:center}
+.groq-prompt-title{font-size:14px;font-weight:600;margin-bottom:6px;color:var(--accent)}
+.groq-prompt-sub{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px}
+.key-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.key-badge.server{background:rgba(0,255,178,.12);border:1px solid rgba(0,255,178,.3);color:var(--accent3)}
+.key-badge.user{background:rgba(0,201,255,.12);border:1px solid rgba(0,201,255,.3);color:var(--accent)}
+.key-badge.none{background:rgba(255,109,0,.1);border:1px solid rgba(255,109,0,.3);color:var(--warn)}
 </style>
 </head>
 <body>
@@ -445,7 +454,8 @@ function CityProvider({children}){
   const [reports,setReports]=useState(REPORTS_INIT);
   const [favorites,setFavorites]=useState([]);
   const [alerts]=useState(ALERTS_INIT);
-  const groqKey=localStorage.getItem('groq_key')||'';
+  const [groqKey,setGroqKeyState]=useState(()=>localStorage.getItem('groq_key')||'');
+  const setGroqKey=useCallback(k=>{localStorage.setItem('groq_key',k);setGroqKeyState(k);},[]);
 
   useEffect(()=>{
     const t=setInterval(()=>{
@@ -471,43 +481,124 @@ function CityProvider({children}){
   const selNeigh=NEIGHBORHOODS.find(n=>n.id===selId)||NEIGHBORHOODS[0];
   const health=calcHealthFull(selData);
   return (
-    <CityCtx.Provider value={{selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav}}>
+    <CityCtx.Provider value={{selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,setGroqKey,favorites,toggleFav}}>
       {children}
     </CityCtx.Provider>
   );
 }
 
-async function callGroq(key,prompt,sys){
-  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[
-      {role:'system',content:sys||'You are CityPulse AI, a smart city assistant. Be concise, data-driven, helpful. 2-3 sentences max.'},
-      {role:'user',content:prompt}
-    ],max_tokens:200}),
-  });
-  const j=await r.json();
-  return j.choices?.[0]?.message?.content||'';
+// callGroq: tries the server-side proxy first (/api/chat, uses GROQ_API_KEY env var on Vercel),
+// then falls back to a user-supplied key stored in localStorage.
+// Throws {noKey:true} when neither is available so callers can surface the key-entry modal.
+const GROQ_BODY=(prompt,sys)=>({
+  model:'llama-3.3-70b-versatile',
+  messages:[
+    {role:'system',content:sys||'You are CityPulse AI, a smart city assistant. Be concise, data-driven, helpful. 2-3 sentences max.'},
+    {role:'user',content:prompt},
+  ],
+  max_tokens:200,
+});
+
+async function callGroq(localKey,prompt,sys){
+  const body=GROQ_BODY(prompt,sys);
+
+  // 1. Try server proxy (Vercel env var GROQ_API_KEY)
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok){const j=await r.json();return j.choices?.[0]?.message?.content||'';}
+  }catch{}
+
+  // 2. Fall back to user-supplied key
+  if(localKey){
+    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localKey},
+      body:JSON.stringify(body),
+    });
+    const j=await r.json();
+    if(j.error)throw Object.assign(new Error(j.error.message),{groqError:true});
+    return j.choices?.[0]?.message?.content||'';
+  }
+
+  // 3. No key available
+  throw Object.assign(new Error('no-key'),{noKey:true});
 }
+
 async function genBriefing(key,data,neigh){
   const h=calcHealthFull(data);
   const fallback=`Good morning! ${neigh.name} is showing ${aqiLabel(data.aqi)} air quality (AQI ${data.aqi}). Traffic is flowing at ${data.traffic}mph average. Neighborhood health score: ${h}/100 — ${scoreLabel(h)} conditions today.`;
-  if(!key)return fallback;
   try{return await callGroq(key,`Neighborhood: ${neigh.name}. AQI: ${data.aqi}, Traffic: ${data.traffic}mph, Noise: ${data.noise}dB, Temp: ${data.temp}°F, Health Score: ${h}/100. Generate a smart morning briefing for residents.`);}
-  catch{return fallback;}
+  catch(e){if(e.noKey)throw e;return fallback;}
 }
 async function genEcoTip(key,data){
   const fallback='Today is a great day to walk or bike — air quality is favorable and traffic is moderate. Small individual actions create significant city-wide environmental impact.';
-  if(!key)return fallback;
   try{return await callGroq(key,`City AQI: ${data.aqi}, Energy: ${data.energy}MW, Solar: ${SUSTAINABILITY.solar}%. Give one specific actionable eco tip for today.`);}
-  catch{return fallback;}
+  catch(e){if(e.noKey)throw e;return fallback;}
 }
 async function genCommuteRec(key,data){
   const cond=data.traffic<40?'Clear roads — great time to drive.':data.traffic<60?'Moderate congestion — consider transit.':'Heavy traffic — strongly recommend BART or MUNI.';
   const fallback=`Traffic is at ${data.traffic}mph average. ${cond}`;
-  if(!key)return fallback;
   try{return await callGroq(key,`Traffic: ${data.traffic}mph, Transit wait: ${data.transit}min, AQI: ${data.aqi}. Best commute option right now?`);}
-  catch{return fallback;}
+  catch(e){if(e.noKey)throw e;return fallback;}
+}
+
+function GroqKeyModal({onClose,onSave}){
+  const [val,setVal]=useState('');
+  const [err,setErr]=useState('');
+  const [testing,setTesting]=useState(false);
+
+  const save=async()=>{
+    const k=val.trim();
+    if(!k){setErr('Please paste your Groq API key.');return;}
+    if(!k.startsWith('gsk_')){setErr('Groq keys start with "gsk_". Double-check your key.');return;}
+    setTesting(true);setErr('');
+    try{
+      const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
+        body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:'hi'}],max_tokens:5}),
+      });
+      const j=await r.json();
+      if(j.error){setErr('Key rejected: '+j.error.message);setTesting(false);return;}
+      onSave(k);
+      window.CityToast('Groq API key saved! AI features unlocked.','success');
+      onClose();
+    }catch{setErr('Could not reach Groq. Check your connection.');setTesting(false);}
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:460}}>
+        <div className="modal-title">
+          🤖 Enable AI Features
+          <span style={{cursor:'pointer',color:'var(--text2)',fontSize:20}} onClick={onClose}>✕</span>
+        </div>
+        <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.65,marginBottom:20}}>
+          CityPulse uses <b style={{color:'var(--accent)'}}>Groq</b> (free tier) for AI briefings, commute advice, and eco tips.
+          Get your free API key in 30 seconds — no credit card needed.
+        </p>
+        <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer"
+          style={{display:'flex',alignItems:'center',gap:8,background:'rgba(0,201,255,.08)',border:'1px solid rgba(0,201,255,.2)',borderRadius:10,padding:'10px 14px',marginBottom:20,textDecoration:'none',color:'var(--accent)',fontSize:13,fontWeight:600}}>
+          🔑 Get a free Groq key at console.groq.com/keys <span style={{marginLeft:'auto',fontSize:16}}>↗</span>
+        </a>
+        <div className="form-group">
+          <label className="label">Paste your Groq API key</label>
+          <input className="input" type="password" value={val} onChange={e=>setVal(e.target.value)}
+            placeholder="gsk_…" onKeyDown={e=>e.key==='Enter'&&save()}/>
+        </div>
+        {err&&<div style={{fontSize:12,color:'var(--danger)',marginBottom:12,padding:'8px 12px',background:'rgba(255,59,92,.08)',borderRadius:8}}>{err}</div>}
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:4}}>
+          <button className="btn btn-ghost" onClick={onClose}>Skip for now</button>
+          <button className="btn btn-primary" onClick={save} disabled={testing}>
+            {testing?<><span className="spin">⟳</span> Testing…</>:'Save & Enable AI'}
+          </button>
+        </div>
+        <div style={{marginTop:16,fontSize:11,color:'var(--text3)',textAlign:'center'}}>
+          Your key is stored only in your browser's localStorage — never sent to our servers.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function LiveClock(){
@@ -683,16 +774,23 @@ function HealthAdvisory({data}){
   );
 }
 
-function AIBriefing({data,neigh,groqKey}){
+function AIBriefing({data,neigh,groqKey,onNeedKey}){
   const [text,setText]=useState('');
   const [loading,setLoading]=useState(false);
+  const [noKey,setNoKey]=useState(false);
   const neighRef=useRef(null);
 
   const generate=useCallback(async()=>{
-    setLoading(true);setText('');
-    const result=await genBriefing(groqKey,data,neigh);
-    let i=0;
-    const iv=setInterval(()=>{setText(result.slice(0,i));i+=3;if(i>result.length){setText(result);clearInterval(iv);setLoading(false);}},18);
+    setLoading(true);setText('');setNoKey(false);
+    try{
+      const result=await genBriefing(groqKey,data,neigh);
+      let i=0;
+      const iv=setInterval(()=>{setText(result.slice(0,i));i+=3;if(i>result.length){setText(result);clearInterval(iv);setLoading(false);}},18);
+    }catch(e){
+      setLoading(false);
+      if(e.noKey)setNoKey(true);
+      else setText('Could not generate briefing. Please try again.');
+    }
   },[data,neigh,groqKey]);
 
   useEffect(()=>{
@@ -705,25 +803,49 @@ function AIBriefing({data,neigh,groqKey}){
         <div className="ai-tag">
           <div className="ai-dot"></div>
           AI Morning Briefing
-          {groqKey&&<span style={{marginLeft:'auto',fontSize:10,color:'var(--accent3)'}}>Powered by Groq</span>}
+          <span style={{marginLeft:'auto'}}>
+            {groqKey
+              ? <span className="key-badge user">🔑 Your key</span>
+              : <span className="key-badge server">⚡ Server AI</span>
+            }
+          </span>
         </div>
-        <div className="ai-text">{text||<span style={{color:'var(--text2)'}}>Generating briefing…</span>}{loading&&<span className="typing-cursor"/>}</div>
-        <div style={{marginTop:14,display:'flex',gap:8}}>
-          <button className="btn btn-ghost btn-sm" onClick={generate} disabled={loading}>
-            <span className={loading?'spin':''}>⟳</span> Refresh
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={()=>{if(text){navigator.clipboard.writeText(text);window.CityToast('Briefing copied!','success');}}}>
-            📋 Copy
-          </button>
-        </div>
+        {noKey
+          ? <div className="groq-prompt">
+              <div className="groq-prompt-title">🤖 Enable AI Briefings</div>
+              <div className="groq-prompt-sub">Add your free Groq API key to get personalized AI insights powered by Llama 3.3 70B.</div>
+              <button className="btn btn-primary btn-sm" onClick={onNeedKey}>Add Groq API Key (free)</button>
+            </div>
+          : <>
+              <div className="ai-text">{text||<span style={{color:'var(--text2)'}}>Generating briefing…</span>}{loading&&<span className="typing-cursor"/>}</div>
+              <div style={{marginTop:14,display:'flex',gap:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={generate} disabled={loading}>
+                  <span className={loading?'spin':''}>⟳</span> Refresh
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>{if(text){navigator.clipboard.writeText(text);window.CityToast('Briefing copied!','success');}}}>
+                  📋 Copy
+                </button>
+              </div>
+            </>
+        }
       </div>
     </div>
   );
 }
 
-function EcoTip({data,groqKey}){
+function EcoTip({data,groqKey,onNeedKey}){
   const [tip,setTip]=useState('');
-  useEffect(()=>{genEcoTip(groqKey,data).then(setTip);},[]);
+  const [noKey,setNoKey]=useState(false);
+  useEffect(()=>{
+    genEcoTip(groqKey,data).then(setTip).catch(e=>{if(e.noKey)setNoKey(true);});
+  },[]);
+  if(noKey)return (
+    <div className="eco-card">
+      <div className="eco-tag">🌿 Eco Tip of the Day</div>
+      <div style={{fontSize:12,color:'var(--text2)',marginBottom:10}}>Add your Groq key to get AI-powered eco tips.</div>
+      <button className="btn btn-ghost btn-sm" onClick={onNeedKey}>Add API Key</button>
+    </div>
+  );
   return (
     <div className="eco-card">
       <div className="eco-tag">🌿 Eco Tip of the Day</div>
@@ -1080,25 +1202,41 @@ function RadarCard({data}){
   );
 }
 
-function CommuteAdvisor({data,groqKey}){
+function CommuteAdvisor({data,groqKey,onNeedKey}){
   const [rec,setRec]=useState('');
   const [loading,setLoading]=useState(false);
-  useEffect(()=>{genCommuteRec(groqKey,data).then(setRec);},[data.traffic]);
-  const refresh=async()=>{setLoading(true);const r=await genCommuteRec(groqKey,data);setRec(r);setLoading(false);};
+  const [noKey,setNoKey]=useState(false);
+  useEffect(()=>{
+    genCommuteRec(groqKey,data).then(setRec).catch(e=>{if(e.noKey)setNoKey(true);});
+  },[data.traffic]);
+  const refresh=async()=>{
+    setLoading(true);setNoKey(false);
+    try{const r=await genCommuteRec(groqKey,data);setRec(r);}
+    catch(e){if(e.noKey)setNoKey(true);}
+    setLoading(false);
+  };
   return (
     <div className="card">
       <div className="card-title">🧭 AI Commute Advisor</div>
-      <div style={{fontSize:13,color:'var(--text)',lineHeight:1.7,minHeight:42}}>{rec||'Analyzing commute options…'}</div>
-      <button className="btn btn-ghost btn-sm" style={{marginTop:12}} onClick={refresh}>
-        <span className={loading?'spin':''}>⟳</span> Refresh
-      </button>
+      {noKey
+        ? <div>
+            <div style={{fontSize:12,color:'var(--text2)',marginBottom:10}}>Add your Groq key for AI-powered commute recommendations.</div>
+            <button className="btn btn-ghost btn-sm" onClick={onNeedKey}>Add API Key</button>
+          </div>
+        : <>
+            <div style={{fontSize:13,color:'var(--text)',lineHeight:1.7,minHeight:42}}>{rec||'Analyzing commute options…'}</div>
+            <button className="btn btn-ghost btn-sm" style={{marginTop:12}} onClick={refresh}>
+              <span className={loading?'spin':''}>⟳</span> Refresh
+            </button>
+          </>
+      }
     </div>
   );
 }
 
 // ── PAGES ────────────────────────────────────────────────
 
-function DashboardPage(){
+function DashboardPage({onNeedKey}){
   const {selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav}=useContext(CityCtx);
   const [showModal,setShowModal]=useState(false);
   return (
@@ -1127,13 +1265,13 @@ function DashboardPage(){
             <TransitBoard/>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:16}}>
-            <AIBriefing data={selData} neigh={selNeigh} groqKey={groqKey}/>
+            <AIBriefing data={selData} neigh={selNeigh} groqKey={groqKey} onNeedKey={onNeedKey}/>
             <StatCards data={selData}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
               <div className="card"><ForecastChart id={selId}/></div>
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                <EcoTip data={selData} groqKey={groqKey}/>
-                <CommuteAdvisor data={selData} groqKey={groqKey}/>
+                <EcoTip data={selData} groqKey={groqKey} onNeedKey={onNeedKey}/>
+                <CommuteAdvisor data={selData} groqKey={groqKey} onNeedKey={onNeedKey}/>
               </div>
             </div>
           </div>
@@ -1187,7 +1325,7 @@ function MapPage(){
   );
 }
 
-function NeighborhoodPage(){
+function NeighborhoodPage({onNeedKey}){
   const {selId,setSelId,selData,selNeigh,health,groqKey,favorites,toggleFav}=useContext(CityCtx);
   const isFav=favorites.includes(selId);
   const copyStats=()=>{
@@ -1240,7 +1378,7 @@ function NeighborhoodPage(){
             <StatCards data={selData}/>
             <RadarCard data={selData}/>
             <div className="card"><ForecastChart id={selId}/></div>
-            <CommuteAdvisor data={selData} groqKey={groqKey}/>
+            <CommuteAdvisor data={selData} groqKey={groqKey} onNeedKey={onNeedKey}/>
           </div>
         </div>
         <div style={{marginTop:16}}><TrendCharts id={selId}/></div>
@@ -1427,7 +1565,9 @@ function App(){
   const [page,setPage]=useState('dashboard');
   const [showKbd,setShowKbd]=useState(false);
   const [showSos,setShowSos]=useState(false);
-  const {alerts,data,selData}=useContext(CityCtx);
+  const [showGroqModal,setShowGroqModal]=useState(false);
+  const {alerts,data,groqKey,setGroqKey}=useContext(CityCtx);
+  const onNeedKey=useCallback(()=>setShowGroqModal(true),[]);
 
   useEffect(()=>{
     const ids=['dashboard','map','neighborhood','reports','insights','learn'];
@@ -1445,6 +1585,8 @@ function App(){
   },[showKbd]);
 
   const PageComp=PAGES[page]||DashboardPage;
+  // Add a settings key button to navbar when no server key and no user key
+  const showKeyBtn=!groqKey;
 
   return (
     <>
@@ -1461,14 +1603,23 @@ function App(){
           <div className="live-dot" title="Live data feed active"></div>
           <LiveClock/>
           <NotifBell alerts={alerts}/>
+          {showKeyBtn&&(
+            <button className="btn btn-ghost btn-sm" style={{borderColor:'rgba(255,109,0,.4)',color:'var(--warn)'}} onClick={onNeedKey} title="Add Groq API key to enable AI features">
+              🔑 Add AI Key
+            </button>
+          )}
+          {!showKeyBtn&&groqKey&&(
+            <span className="key-badge user" style={{cursor:'pointer'}} onClick={()=>setShowGroqModal(true)} title="AI key active — click to change">🔑 AI Active</span>
+          )}
           <div className="icon-btn" title="Keyboard shortcuts (?)" onClick={()=>setShowKbd(p=>!p)}>⌨️</div>
         </div>
       </nav>
-      <PageComp key={page}/>
+      <PageComp key={page} onNeedKey={onNeedKey}/>
       <Ticker data={data}/>
       <button className="sos-btn" title="Emergency & Services (S)" onClick={()=>setShowSos(p=>!p)}>SOS</button>
       {showSos&&<SosPanel onClose={()=>setShowSos(false)}/>}
       {showKbd&&<KbdOverlay onClose={()=>setShowKbd(false)}/>}
+      {showGroqModal&&<GroqKeyModal onClose={()=>setShowGroqModal(false)} onSave={setGroqKey}/>}
     </>
   );
 }
