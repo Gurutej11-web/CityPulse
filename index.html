@@ -1366,6 +1366,12 @@ function CityMap({selId,data,layer}){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(instRef.current);
   },[]);
 
+  // Fly to new city center when city changes
+  useEffect(()=>{
+    if(!instRef.current)return;
+    instRef.current.flyTo(city.center,city.zoom,{animate:true,duration:1.2});
+  },[city.id]);
+
   useEffect(()=>{
     if(!instRef.current)return;
     markersRef.current.forEach(m=>m.remove());
