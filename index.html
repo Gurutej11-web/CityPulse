@@ -116,7 +116,7 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
 /* PAGE */
 .page-wrap{animation:pageIn .3s ease}
 @keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-.main{padding:72px 20px 56px;max-width:1400px;margin:0 auto}
+.main{padding:100px 20px 56px;max-width:1400px;margin:0 auto}
 .section-title{font-size:22px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
 
 /* CARDS */
@@ -209,7 +209,7 @@ body{background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
 select.input option{background:var(--bg2)}
 
 /* ALERT BANNER */
-.alert-banner{background:linear-gradient(135deg,rgba(255,59,92,.15),rgba(255,109,0,.1));border-bottom:1px solid rgba(255,59,92,.3);padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;position:sticky;top:60px;z-index:595}
+.alert-banner{background:linear-gradient(135deg,rgba(255,59,92,.15),rgba(255,109,0,.1));border-bottom:1px solid rgba(255,59,92,.3);padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;position:sticky;top:96px;z-index:585}
 
 /* TRANSIT */
 .transit-row{display:flex;align-items:center;gap:14px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:12px;margin-bottom:8px}
@@ -273,6 +273,13 @@ select.input option{background:var(--bg2)}
 .city-stat-val{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
 .city-stat-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px}
 .city-card-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px}
+
+/* CITY HERO BAR */
+.city-hero{position:sticky;top:60px;z-index:590;background:rgba(6,13,24,.97);border-bottom:1px solid var(--border);padding:7px 20px;display:flex;align-items:center;gap:0;backdrop-filter:blur(20px);overflow:hidden}
+.city-hero-name{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;padding-right:20px;border-right:1px solid var(--border);margin-right:20px;white-space:nowrap}
+.city-hero-stat{display:flex;align-items:center;gap:6px;padding:0 16px;border-right:1px solid rgba(255,255,255,.06);font-size:12px;color:var(--text2);white-space:nowrap}
+.city-hero-stat:last-child{border-right:none}
+.city-hero-val{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text);margin-left:2px}
 
 /* CITY SWITCHER */
 .city-switcher{position:relative;flex-shrink:0}
@@ -1872,6 +1879,47 @@ function LearnPage(){
 
 const PAGES={dashboard:DashboardPage,map:MapPage,neighborhood:NeighborhoodPage,reports:ReportsPage,insights:InsightsPage,learn:LearnPage};
 
+const CITY_WEATHER={
+  sf:   {temp:58,condition:'Foggy',icon:'🌫️',wind:'12mph W',humidity:88},
+  nyc:  {temp:42,condition:'Partly Cloudy',icon:'⛅',wind:'18mph NW',humidity:62},
+  chicago:{temp:28,condition:'Snowing',icon:'🌨️',wind:'24mph NW',humidity:75},
+  la:   {temp:82,condition:'Sunny',icon:'☀️',wind:'8mph SW',humidity:35},
+  seattle:{temp:52,condition:'Rainy',icon:'🌧️',wind:'14mph SW',humidity:91},
+  miami:{temp:88,condition:'Thunderstorms',icon:'⛈️',wind:'20mph SE',humidity:84},
+  austin:{temp:96,condition:'Hot & Sunny',icon:'🔆',wind:'10mph S',humidity:40},
+};
+
+function CityHero(){
+  const {city,health,selData}=useContext(CityCtx);
+  const w=CITY_WEATHER[city.id]||{temp:70,condition:'Clear',icon:'☀️',wind:'10mph',humidity:60};
+  return (
+    <div className="city-hero">
+      <div className="city-hero-name">
+        <span style={{fontSize:20}}>{city.emoji}</span>
+        <span style={{color:city.color}}>{city.name}</span>
+      </div>
+      <div className="city-hero-stat">
+        {w.icon} <span className="city-hero-val">{w.temp}°F</span> <span style={{marginLeft:4}}>{w.condition}</span>
+      </div>
+      <div className="city-hero-stat">
+        💨 <span className="city-hero-val">{w.wind}</span>
+      </div>
+      <div className="city-hero-stat">
+        💧 <span className="city-hero-val">{w.humidity}%</span> humidity
+      </div>
+      <div className="city-hero-stat">
+        🌬️ AQI <span className="city-hero-val" style={{color:aqiColor(selData.aqi)}}>{selData.aqi}</span>
+      </div>
+      <div className="city-hero-stat">
+        ❤️ Health <span className="city-hero-val" style={{color:scoreColor(health)}}>{health}/100</span>
+      </div>
+      <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text3)'}}>
+        <div className="fresh-dot"></div> Live
+      </div>
+    </div>
+  );
+}
+
 function CitySwitcher({onPick}){
   const {city}=useContext(CityCtx);
   const [open,setOpen]=useState(false);
@@ -2044,6 +2092,7 @@ function App(){
           <div className="icon-btn" title="Keyboard shortcuts (?)" onClick={()=>setShowKbd(p=>!p)}>⌨️</div>
         </div>
       </nav>
+      <CityHero/>
       <PageComp key={page} onNeedKey={onNeedKey}/>
       <Ticker data={data}/>
       <button className="sos-btn" title="Emergency & Services (S)" onClick={()=>setShowSos(p=>!p)}>SOS</button>
