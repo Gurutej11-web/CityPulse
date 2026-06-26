@@ -831,7 +831,7 @@ async function genBriefing(key,data,neigh){
 }
 async function genEcoTip(key,data){
   const fallback='Today is a great day to walk or bike — air quality is favorable and traffic is moderate. Small individual actions create significant city-wide environmental impact.';
-  try{return await callGroq(key,`City AQI: ${data.aqi}, Energy: ${data.energy}MW, Solar: ${SUSTAINABILITY.solar}%. Give one specific actionable eco tip for today.`);}
+  try{return await callGroq(key,`City AQI: ${data.aqi}, Energy: ${data.energy}MW. Give one specific actionable eco tip for today.`);}
   catch(e){if(e.noKey)throw e;return fallback;}
 }
 async function genCommuteRec(key,data){
@@ -995,7 +995,8 @@ function SosPanel({onClose}){
 }
 
 function Ticker({data}){
-  const items=NEIGHBORHOODS.map(n=>{const d=data[n.id]||{aqi:50,traffic:45};return {name:n.name,aqi:d.aqi,traffic:d.traffic};});
+  const {neighborhoods}=useContext(CityCtx);
+  const items=neighborhoods.map(n=>{const d=data[n.id]||{aqi:50,traffic:45};return {name:n.name,aqi:d.aqi,traffic:d.traffic};});
   const doubled=[...items,...items];
   return (
     <div className="ticker-bar">
@@ -1246,6 +1247,7 @@ function TrendCharts({id}){
 }
 
 function CommunityFeed({reports,onNew}){
+  const {neighborhoods}=useContext(CityCtx);
   const [voted,setVoted]=useState({});
   const [counts,setCounts]=useState(()=>Object.fromEntries(reports.map(r=>[r.id,r.upvotes])));
   const [plusOne,setPlusOne]=useState(null);
@@ -1285,7 +1287,7 @@ function CommunityFeed({reports,onNew}){
           </div>
           <div style={{fontSize:12,color:'var(--text2)',marginBottom:10,lineHeight:1.5}}>{r.body}</div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:11,color:'var(--text3)'}}>📍 {NEIGHBORHOODS.find(n=>n.id===r.neigh)?.name||r.neigh}</span>
+            <span style={{fontSize:11,color:'var(--text3)'}}>📍 {neighborhoods.find(n=>n.id===r.neigh)?.name||r.neigh}</span>
             <button className={`upvote-btn${voted[r.id]?' voted':''}`} onClick={e=>upvote(r.id,e)}>
               {plusOne===r.id&&<span className="float-plus">+1</span>}
               👍 {counts[r.id]||0}
@@ -1298,7 +1300,8 @@ function CommunityFeed({reports,onNew}){
 }
 
 function ReportModal({onClose,onSubmit}){
-  const [form,setForm]=useState({title:'',category:'Road',severity:'medium',body:'',neigh:'downtown'});
+  const {neighborhoods}=useContext(CityCtx);
+  const [form,setForm]=useState({title:'',category:'Road',severity:'medium',body:'',neigh:neighborhoods[0]?.id||'downtown'});
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const submit=e=>{
     e.preventDefault();
@@ -1334,7 +1337,7 @@ function ReportModal({onClose,onSubmit}){
           <div className="form-group">
             <label className="label">Neighborhood</label>
             <select className="input" value={form.neigh} onChange={set('neigh')}>
-              {NEIGHBORHOODS.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}
+              {neighborhoods.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -1352,13 +1355,14 @@ function ReportModal({onClose,onSubmit}){
 }
 
 function CityMap({selId,data,layer}){
+  const {neighborhoods,city}=useContext(CityCtx);
   const mapRef=useRef(null);
   const instRef=useRef(null);
   const markersRef=useRef([]);
 
   useEffect(()=>{
     if(instRef.current)return;
-    instRef.current=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView([37.78,-122.43],13);
+    instRef.current=L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView(city.center,city.zoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(instRef.current);
   },[]);
 
@@ -1366,7 +1370,7 @@ function CityMap({selId,data,layer}){
     if(!instRef.current)return;
     markersRef.current.forEach(m=>m.remove());
     markersRef.current=[];
-    NEIGHBORHOODS.forEach(n=>{
+    neighborhoods.forEach(n=>{
       const d=data[n.id]||{aqi:50,traffic:45,noise:55,energy:400,incidents:3,pedestrian:20,transit:5};
       const val=d[layer]??d.aqi;
       const color=layerColor(layer,val);
@@ -1388,10 +1392,11 @@ function CityMap({selId,data,layer}){
 }
 
 function TransitBoard(){
+  const {transit}=useContext(CityCtx);
   return (
     <div className="card">
       <div className="card-title">🚌 Live Transit</div>
-      {TRANSIT_DATA.map((t,i)=>(
+      {transit.map((t,i)=>(
         <div key={i} className="transit-row">
           <div className="route-badge" style={{background:t.color+'22',color:t.color,border:`1px solid ${t.color}44`}}>{t.route}</div>
           <div style={{flex:1}}>
@@ -1406,7 +1411,7 @@ function TransitBoard(){
 }
 
 function SustainabilityCard(){
-  const s=SUSTAINABILITY;
+  const {sustainability:s}=useContext(CityCtx);
   const r=50,cx=60,cy=60,circ=2*Math.PI*r,dash=(s.score/100)*circ;
   const metrics=[
     {label:'Solar Adoption',value:s.solar,pct:s.solar,unit:'%',color:'#FFD600'},
@@ -1442,10 +1447,11 @@ function SustainabilityCard(){
 }
 
 function NeighborhoodComparison({data}){
-  const rows=useMemo(()=>NEIGHBORHOODS.map(n=>{
+  const {neighborhoods}=useContext(CityCtx);
+  const rows=useMemo(()=>neighborhoods.map(n=>{
     const d=data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3};
     return {...n,d,health:calcHealthFull(d)};
-  }).sort((a,b)=>b.health-a.health),[data]);
+  }).sort((a,b)=>b.health-a.health),[data,neighborhoods]);
 
   const copy=()=>{
     const txt=rows.map((r,i)=>`${i+1}. ${r.name}: ${r.health}/100 (AQI ${r.d.aqi}, Traffic ${r.d.traffic}mph)`).join('\n');
@@ -1536,14 +1542,14 @@ function CommuteAdvisor({data,groqKey,onNeedKey}){
 // ── PAGES ────────────────────────────────────────────────
 
 function DashboardPage({onNeedKey}){
-  const {selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav}=useContext(CityCtx);
+  const {selId,setSelId,selData,selNeigh,health,data,reports,addReport,alerts,groqKey,favorites,toggleFav,neighborhoods}=useContext(CityCtx);
   const [showModal,setShowModal]=useState(false);
   return (
     <div className="page-wrap">
       {alerts.some(a=>a.unread)&&<AlertBanner alerts={alerts}/>}
       <div className="main">
         <div className="neigh-selector">
-          {NEIGHBORHOODS.map(n=>(
+          {neighborhoods.map(n=>(
             <button key={n.id} className={`neigh-btn${selId===n.id?' active':''}`}
               style={selId===n.id?{borderColor:n.color,color:n.color,background:n.color+'18'}:{}}
               onClick={()=>setSelId(n.id)}>
@@ -1590,7 +1596,7 @@ function DashboardPage({onNeedKey}){
 }
 
 function MapPage(){
-  const {selId,setSelId,data}=useContext(CityCtx);
+  const {selId,setSelId,data,neighborhoods}=useContext(CityCtx);
   const [layer,setLayer]=useState('aqi');
   return (
     <div className="page-wrap">
@@ -1603,7 +1609,7 @@ function MapPage(){
         </div>
         <div className="map-wrap"><CityMap selId={selId} data={data} layer={layer}/></div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,marginTop:16}}>
-          {NEIGHBORHOODS.map(n=>{
+          {neighborhoods.map(n=>{
             const d=data[n.id]||{};
             const val=d[layer]??d.aqi??0;
             const h=calcHealthFull({aqi:d.aqi||50,traffic:d.traffic||45,noise:d.noise||55,incidents:d.incidents||3});
@@ -1625,7 +1631,7 @@ function MapPage(){
 }
 
 function NeighborhoodPage({onNeedKey}){
-  const {selId,setSelId,selData,selNeigh,health,groqKey,favorites,toggleFav}=useContext(CityCtx);
+  const {selId,setSelId,selData,selNeigh,health,groqKey,favorites,toggleFav,neighborhoods}=useContext(CityCtx);
   const isFav=favorites.includes(selId);
   const copyStats=()=>{
     const d=selData;
@@ -1636,7 +1642,7 @@ function NeighborhoodPage({onNeedKey}){
     <div className="page-wrap">
       <div className="main">
         <div className="neigh-selector">
-          {NEIGHBORHOODS.map(n=>(
+          {neighborhoods.map(n=>(
             <button key={n.id} className={`neigh-btn${selId===n.id?' active':''}`}
               style={selId===n.id?{borderColor:n.color,color:n.color,background:n.color+'18'}:{}}
               onClick={()=>setSelId(n.id)}>{n.name}</button>
@@ -1687,7 +1693,7 @@ function NeighborhoodPage({onNeedKey}){
 }
 
 function ReportsPage(){
-  const {reports,addReport}=useContext(CityCtx);
+  const {reports,addReport,neighborhoods}=useContext(CityCtx);
   const [showModal,setShowModal]=useState(false);
   const [filter,setFilter]=useState('all');
   const cats=['all','Road','Lighting','Waste','Utilities','Transit','Parks'];
@@ -1727,7 +1733,7 @@ function ReportsPage(){
             </div>
             <div className="card">
               <div className="card-title">🏘️ Reports by Neighborhood</div>
-              {NEIGHBORHOODS.map(n=>{
+              {neighborhoods.map(n=>{
                 const cnt=reports.filter(r=>r.neigh===n.id).length;
                 return (
                   <div key={n.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,.04)',fontSize:13}}>
@@ -1746,10 +1752,10 @@ function ReportsPage(){
 }
 
 function InsightsPage(){
-  const {data}=useContext(CityCtx);
-  const allHealth=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),score:calcHealthFull(data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3})}));
-  const allAqi=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),aqi:(data[n.id]||{aqi:50}).aqi}));
-  const allEnergy=NEIGHBORHOODS.map(n=>({name:n.name.slice(0,8),mw:(data[n.id]||{energy:400}).energy}));
+  const {data,neighborhoods}=useContext(CityCtx);
+  const allHealth=neighborhoods.map(n=>({name:n.name.slice(0,8),score:calcHealthFull(data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3})}));
+  const allAqi=neighborhoods.map(n=>({name:n.name.slice(0,8),aqi:(data[n.id]||{aqi:50}).aqi}));
+  const allEnergy=neighborhoods.map(n=>({name:n.name.slice(0,8),mw:(data[n.id]||{energy:400}).energy}));
   return (
     <div className="page-wrap">
       <div className="main">
