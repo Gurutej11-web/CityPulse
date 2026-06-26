@@ -363,15 +363,6 @@ const {useState,useEffect,useRef,useCallback,createContext,useContext,useMemo}=R
 const {LineChart,Line,BarChart,Bar,Cell,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,
        RadarChart,PolarGrid,PolarAngleAxis,Radar,AreaChart,Area}=Recharts;
 
-const NEIGHBORHOODS=[
-  {id:'downtown',name:'Downtown',lat:37.7945,lng:-122.3952,color:'#00C9FF'},
-  {id:'mission',name:'Mission',lat:37.7599,lng:-122.4148,color:'#7B61FF'},
-  {id:'soma',name:'SoMa',lat:37.7785,lng:-122.4056,color:'#00FFB2'},
-  {id:'richmond',name:'Richmond',lat:37.7797,lng:-122.4644,color:'#FF6D00'},
-  {id:'nob_hill',name:'Nob Hill',lat:37.7930,lng:-122.4162,color:'#FFD600'},
-  {id:'haight',name:'Haight',lat:37.7693,lng:-122.4476,color:'#FF3B5C'},
-  {id:'marina',name:'Marina',lat:37.8026,lng:-122.4369,color:'#00E676'},
-];
 const LAYERS=[
   {id:'aqi',name:'Air Quality',icon:'🌬️',unit:'AQI'},
   {id:'traffic',name:'Traffic',icon:'🚗',unit:'mph'},
@@ -399,11 +390,6 @@ const PROFILES={
   marina:{aqi:25,traffic:40,noise:48,energy:340,incidents:2,transit:9,pedestrian:18},
 };
 
-// Profile cache — populated from active city so helpers work for any city
-let _profileCache={};
-CITIES[0].neighborhoods.forEach(n=>{ _profileCache[n.id]=n.profile; });
-function getProfile(id){ return _profileCache[id]||PROFILES[id]||PROFILES.downtown; }
-
 function jitter(v){return Math.max(0,v+(Math.random()-.5)*v*.22|0);}
 function genNeighData(id){
   const p=getProfile(id);
@@ -411,7 +397,7 @@ function genNeighData(id){
     aqi:jitter(p.aqi),traffic:jitter(p.traffic),noise:jitter(p.noise),
     energy:jitter(p.energy),incidents:jitter(p.incidents),
     transit:jitter(p.transit),pedestrian:jitter(p.pedestrian),
-    temp:Math.round(58+Math.random()*12),humidity:Math.round(60+Math.random()*25),
+    temp:Math.round((_currentCityWeather.temp||65)+(Math.random()-.5)*8),humidity:Math.round((_currentCityWeather.humidity||65)+(Math.random()-.5)*10),
     pm25:+(p.aqi*.35+Math.random()*5).toFixed(1),
   };
 }
@@ -435,28 +421,6 @@ function getForecast(id){
   });
 }
 
-const REPORTS_INIT=[
-  {id:1,title:'Pothole on Market & 5th',category:'Road',severity:'high',neigh:'downtown',time:1735200000,upvotes:34,body:'Large pothole causing vehicle damage. Multiple incidents reported this week.'},
-  {id:2,title:'Broken streetlight near Mission Dolores',category:'Lighting',severity:'medium',neigh:'mission',time:1735186000,upvotes:21,body:'Street has been dark for 3 nights. Safety concern for pedestrians.'},
-  {id:3,title:'Illegal dumping near SoMa alley',category:'Waste',severity:'medium',neigh:'soma',time:1735150000,upvotes:18,body:'Large pile of debris blocking sidewalk. Foul odor reported.'},
-  {id:4,title:'Water main leak on Sacramento St',category:'Utilities',severity:'high',neigh:'nob_hill',time:1735120000,upvotes:45,body:'Active water leak. Street flooding in progress. SFPUC notified.'},
-  {id:5,title:'New bike lane needed on Haight St',category:'Transit',severity:'low',neigh:'haight',time:1735090000,upvotes:62,body:'High cyclist traffic but no protected lane. Please add infrastructure.'},
-  {id:6,title:'Park benches need repair in Marina Green',category:'Parks',severity:'low',neigh:'marina',time:1735060000,upvotes:15,body:'Several benches broken or missing slats. Affects elderly visitors.'},
-];
-const TRANSIT_DATA=[
-  {route:'BART',line:'Blue Line',dest:'Embarcadero',mins:3,color:'#00C9FF'},
-  {route:'MUNI',line:'N Judah',dest:'Castro',mins:7,color:'#7B61FF'},
-  {route:'BUS',line:'38-Geary',dest:'Richmond',mins:2,color:'#FF6D00'},
-  {route:'BART',line:'Red Line',dest:'Daly City',mins:11,color:'#FF3B5C'},
-  {route:'MUNI',line:'J Church',dest:'Balboa Park',mins:14,color:'#00FFB2'},
-];
-const SUSTAINABILITY={score:72,solar:38,ev:156,recycling:64,trees:12400,water_saved:2.4};
-const ALERTS_INIT=[
-  {id:1,icon:'🚨',text:'Air quality alert: Downtown AQI elevated to 68. Sensitive groups should limit outdoor exposure.',time:'9 min ago',unread:true},
-  {id:2,icon:'🚗',text:'Major traffic incident on I-80 westbound. Expect 25-min delays through downtown.',time:'22 min ago',unread:true},
-  {id:3,icon:'⚡',text:'Grid peak demand alert. City conservation request in effect until 9pm.',time:'1 hr ago',unread:false},
-  {id:4,icon:'🌧️',text:'Fog advisory: Marine layer through noon. Visibility reduced in Mission and Haight.',time:'2 hr ago',unread:false},
-];
 
 // ── MULTI-CITY DATA ──────────────────────────────────────
 const CITIES=[
@@ -695,6 +659,12 @@ const CITIES=[
   },
 ];
 
+// Profile + weather cache — must come after CITIES so CITIES[0] is defined
+let _profileCache={};
+CITIES[0].neighborhoods.forEach(n=>{ _profileCache[n.id]=n.profile; });
+function getProfile(id){ return _profileCache[id]||PROFILES[id]||PROFILES.downtown; }
+let _currentCityWeather={temp:58,humidity:70};
+
 function calcHealth(aqi,traffic,noise,incidents){
   return Math.round(
     Math.max(0,100-(aqi/300)*100)*.35+
@@ -743,6 +713,7 @@ function CityProvider({children}){
   useEffect(()=>{
     _profileCache={};
     city.neighborhoods.forEach(n=>{_profileCache[n.id]=n.profile;});
+    _currentCityWeather=CITY_WEATHER[city.id]||{temp:65,humidity:65};
     const d={};
     city.neighborhoods.forEach(n=>{d[n.id]=genNeighData(n.id);});
     setData(d);
@@ -842,7 +813,7 @@ async function genEcoTip(key,data){
   catch(e){if(e.noKey)throw e;return fallback;}
 }
 async function genCommuteRec(key,data){
-  const cond=data.traffic<40?'Clear roads — great time to drive.':data.traffic<60?'Moderate congestion — consider transit.':'Heavy traffic — strongly recommend BART or MUNI.';
+  const cond=data.traffic<40?'Clear roads — great time to drive.':data.traffic<60?'Moderate congestion — consider transit.':'Heavy traffic — strongly recommend public transit.';
   const fallback=`Traffic is at ${data.traffic}mph average. ${cond}`;
   try{return await callGroq(key,`Traffic: ${data.traffic}mph, Transit wait: ${data.transit}min, AQI: ${data.aqi}. Best commute option right now?`);}
   catch(e){if(e.noKey)throw e;return fallback;}
@@ -977,12 +948,14 @@ function KbdOverlay({onClose}){
 }
 
 function SosPanel({onClose}){
+  const {city}=useContext(CityCtx);
   const items=[
-    {icon:'🚔',label:'Police (Non-Emergency)',sub:'415-553-0123'},
-    {icon:'🚒',label:'Fire Hazard Report',sub:'415-558-3268'},
-    {icon:'🚑',label:'Medical Emergency',sub:'Call 911'},
-    {icon:'⚡',label:'PG&E Power Outage',sub:'1-800-743-5000'},
-    {icon:'💧',label:'SF Water Emergency',sub:'415-551-3000'},
+    {icon:'🚨',label:'Emergency Services',sub:'Call 911'},
+    {icon:'🚔',label:'Police (Non-Emergency)',sub:`${city.name} Police Dept`},
+    {icon:'🚒',label:'Fire Hazard Report',sub:`${city.name} Fire Dept`},
+    {icon:'🚑',label:'Medical Emergency',sub:'Call 911 immediately'},
+    {icon:'⚡',label:'Power Outage',sub:'Contact local utility provider'},
+    {icon:'💧',label:'Water Emergency',sub:`${city.name} Water Dept`},
   ];
   return (
     <div className="sos-panel">
@@ -1399,7 +1372,7 @@ function CityMap({selId,data,layer}){
       if(n.id===selId){m.openPopup();instRef.current.panTo([n.lat,n.lng],{animate:true,duration:.5});}
       markersRef.current.push(m);
     });
-  },[selId,data,layer]);
+  },[selId,data,layer,neighborhoods]);
 
   return <div ref={mapRef} style={{height:'440px',width:'100%'}}/>;
 }
@@ -1895,13 +1868,14 @@ function InsightsPage(){
 }
 
 function LearnPage(){
+  const {city}=useContext(CityCtx);
   const cards=[
     {icon:'🌬️',title:'Understanding AQI',text:'Air Quality Index measures how clean or polluted your air is. AQI 0–50 is Good, 51–100 Moderate, 101–150 Unhealthy for Sensitive Groups, 151+ Unhealthy for all. Sensitive groups include children, elderly, and those with respiratory conditions.'},
     {icon:'🏙️',title:'How Health Score Works',text:"CityPulse's neighborhood health score is a weighted composite: Air Quality (35%), Noise (25%), Traffic (20%), and Active Incidents (20%). All factors are normalized 0–100 where higher is always better."},
     {icon:'🚗',title:'Reading Traffic Data',text:'Traffic speeds below 40mph indicate heavy congestion, 40–60mph is moderate flow, above 60mph is clear. CityPulse updates traffic data every 15 seconds via distributed loop detector networks across major arterials.'},
     {icon:'🔊',title:'Noise Pollution Impact',text:'Noise above 65dB can impact sleep quality and cardiovascular health with long-term exposure. 55dB is typical urban background noise. CityPulse noise readings come from street-level acoustic sensor arrays.'},
     {icon:'⚡',title:'City Energy Grid',text:'Energy consumption in megawatts (MW) reflects grid demand per neighborhood. Peaks occur 5–9pm on weekdays. During grid alerts, conservation requests help prevent rolling blackouts and reduce city carbon emissions.'},
-    {icon:'🌿',title:'Urban Sustainability',text:"San Francisco's sustainability goals include 100% renewable energy by 2030, net-zero emissions by 2040, and 80% waste diversion from landfills. CityPulse tracks your neighborhood's contribution to these targets."},
+    {icon:'🌿',title:'Urban Sustainability',text:`${city.name}'s sustainability goals include 100% renewable energy by 2030, net-zero emissions by 2040, and 80% waste diversion from landfills. CityPulse tracks your neighborhood's contribution to these targets.`},
   ];
   return (
     <div className="page-wrap">
@@ -1921,11 +1895,11 @@ function LearnPage(){
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginTop:8}}>
             {[
               {icon:'🌬️',label:'Air Quality',src:'EPA AQS Network + AirNow sensors'},
-              {icon:'🚗',label:'Traffic',src:'Caltrans & SF MTA loop detectors'},
-              {icon:'🔊',label:'Noise',src:'SF Noise Monitoring Network'},
-              {icon:'⚡',label:'Energy',src:'PG&E smart grid telemetry'},
-              {icon:'🚌',label:'Transit',src:'511 SF Bay GTFS real-time feed'},
-              {icon:'🚨',label:'Incidents',src:'SF Dept. of Emergency Management'},
+              {icon:'🚗',label:'Traffic',src:'City transportation dept loop detectors'},
+              {icon:'🔊',label:'Noise',src:'City-wide acoustic sensor network'},
+              {icon:'⚡',label:'Energy',src:'City utility smart grid telemetry'},
+              {icon:'🚌',label:'Transit',src:'City transit GTFS real-time feed'},
+              {icon:'🚨',label:'Incidents',src:'City emergency management dept'},
             ].map(d=>(
               <div key={d.label} style={{background:'rgba(255,255,255,.03)',borderRadius:12,padding:'12px 14px'}}>
                 <div style={{fontSize:18,marginBottom:6}}>{d.icon}</div>
