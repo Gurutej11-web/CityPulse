@@ -360,7 +360,7 @@ window.addEventListener('load',function(){
 
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback,createContext,useContext,useMemo}=React;
-const {LineChart,Line,BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,
+const {LineChart,Line,BarChart,Bar,Cell,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,
        RadarChart,PolarGrid,PolarAngleAxis,Radar,AreaChart,Area}=Recharts;
 
 const NEIGHBORHOODS=[
@@ -1764,6 +1764,68 @@ function ReportsPage(){
   );
 }
 
+function CityComparisonChart(){
+  const {city:activeCity}=useContext(CityCtx);
+  const cityStats=useMemo(()=>CITIES.map(c=>{
+    const profiles=c.neighborhoods.map(n=>n.profile);
+    const avg=(key)=>Math.round(profiles.reduce((s,p)=>s+p[key],0)/profiles.length);
+    const aqi=avg('aqi');const traffic=avg('traffic');const noise=avg('noise');const incidents=avg('incidents');
+    return {name:c.name.replace('New York City','NYC').replace('Los Angeles','LA').replace('San Francisco','SF').replace('Washington','DC'),
+      emoji:c.emoji,color:c.color,id:c.id,
+      health:calcHealth(aqi,traffic,noise,incidents),aqi,sustainability:c.sustainability.score};
+  }),[]);
+
+  const [metric,setMetric]=useState('health');
+  const metricCfg={
+    health:{label:'Health Score',color:'#00C9FF',domain:[0,100]},
+    aqi:{label:'Avg AQI (lower=better)',color:'#FF6D00',domain:[0,120]},
+    sustainability:{label:'Sustainability Score',color:'#00FFB2',domain:[0,100]},
+  };
+  const cfg=metricCfg[metric];
+  const chartData=cityStats.map(c=>({name:c.emoji+' '+c.name,value:c[metric],color:c.color,active:c.id===activeCity.id}));
+
+  return (
+    <div className="card" style={{marginBottom:16}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <div className="card-title" style={{margin:0}}>🌍 All Cities Comparison</div>
+        <div style={{display:'flex',gap:6}}>
+          {Object.entries(metricCfg).map(([k,v])=>(
+            <button key={k} className={`layer-toggle${metric===k?' active':''}`} onClick={()=>setMetric(k)}
+              style={metric===k?{borderColor:v.color,color:v.color,background:v.color+'15'}:{}}>
+              {v.label.split(' ')[0]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{height:220}}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{top:5,right:5,left:-20,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+            <XAxis dataKey="name" tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+            <YAxis domain={cfg.domain} tick={{fill:'#8896B3',fontSize:11}} tickLine={false} axisLine={false}/>
+            <Tooltip contentStyle={{background:'rgba(15,31,61,.95)',border:'1px solid rgba(0,201,255,.15)',borderRadius:8,fontSize:12}}
+              formatter={(v)=>[v,cfg.label]}/>
+            <Bar dataKey="value" radius={[4,4,0,0]}>
+              {chartData.map((entry,i)=>(
+                <Cell key={i} fill={entry.active?entry.color:entry.color+'66'}/>
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:12}}>
+        {cityStats.map(c=>(
+          <div key={c.id} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:c.id===activeCity.id?c.color:'var(--text2)',fontWeight:c.id===activeCity.id?700:400}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:c.color,flexShrink:0}}/>
+            {c.emoji} {c.name} — <span style={{fontFamily:'JetBrains Mono',marginLeft:2}}>{c[metric]}{metric==='aqi'?' AQI':'/100'}</span>
+            {c.id===activeCity.id&&<span style={{fontSize:9,padding:'1px 5px',background:c.color+'22',borderRadius:8,border:`1px solid ${c.color}44`}}>YOU</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function InsightsPage(){
   const {data,neighborhoods}=useContext(CityCtx);
   const allHealth=neighborhoods.map(n=>({name:n.name.slice(0,8),score:calcHealthFull(data[n.id]||{aqi:50,traffic:45,noise:55,incidents:3})}));
@@ -1773,6 +1835,7 @@ function InsightsPage(){
     <div className="page-wrap">
       <div className="main">
         <div className="section-title"><span>🔍</span> City Insights</div>
+        <CityComparisonChart/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
           <div className="card">
             <div className="card-title">🏆 Health Scores by Neighborhood</div>
