@@ -257,6 +257,22 @@ select.input option{background:var(--bg2)}
 .key-badge.server{background:rgba(0,255,178,.12);border:1px solid rgba(0,255,178,.3);color:var(--accent3)}
 .key-badge.user{background:rgba(0,201,255,.12);border:1px solid rgba(0,201,255,.3);color:var(--accent)}
 .key-badge.none{background:rgba(255,109,0,.1);border:1px solid rgba(255,109,0,.3);color:var(--warn)}
+
+/* CITY SELECTOR */
+.city-selector{position:fixed;inset:0;background:var(--bg);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:60px 24px 40px;overflow-y:auto;animation:fadeIn .3s ease}
+.city-selector-title{font-size:38px;font-weight:700;background:linear-gradient(135deg,#00C9FF,#A855F7,#00FFB2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-1.5px;margin-bottom:6px;text-align:center}
+.city-selector-sub{font-size:14px;color:var(--text2);letter-spacing:2px;text-transform:uppercase;margin-bottom:44px;text-align:center}
+.city-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;width:100%;max-width:1100px}
+.city-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:26px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .25s;position:relative;overflow:hidden;backdrop-filter:blur(16px)}
+.city-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--c-color,#00C9FF);opacity:.9}
+.city-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.city-card-emoji{font-size:38px;margin-bottom:12px;display:block;filter:drop-shadow(0 0 12px rgba(255,255,255,.15))}
+.city-card-name{font-size:20px;font-weight:700;margin-bottom:4px}
+.city-card-stats{display:flex;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)}
+.city-stat{display:flex;flex-direction:column;gap:3px}
+.city-stat-val{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
+.city-stat-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px}
+.city-card-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -1832,13 +1848,98 @@ function LearnPage(){
 
 const PAGES={dashboard:DashboardPage,map:MapPage,neighborhood:NeighborhoodPage,reports:ReportsPage,insights:InsightsPage,learn:LearnPage};
 
+function CitySelector({onPick}){
+  const [hovered,setHovered]=useState(null);
+
+  const avgHealth=(city)=>{
+    const profiles=city.neighborhoods.map(n=>n.profile);
+    const avg=(key)=>Math.round(profiles.reduce((s,p)=>s+p[key],0)/profiles.length);
+    return calcHealth(avg('aqi'),avg('traffic'),avg('noise'),avg('incidents'));
+  };
+  const avgAqi=(city)=>{
+    const profiles=city.neighborhoods.map(n=>n.profile);
+    return Math.round(profiles.reduce((s,p)=>s+p.aqi,0)/profiles.length);
+  };
+
+  const pick=(city)=>{
+    document.documentElement.style.setProperty('--accent',city.color);
+    window.CityToast(`${city.emoji} Welcome to ${city.name}!`,'success',2500);
+    onPick(city);
+  };
+
+  return (
+    <div className="city-selector">
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
+        <div style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#00C9FF,#A855F7)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,color:'#fff',fontSize:14}}>CP</div>
+        <div className="city-selector-title">CityPulse</div>
+      </div>
+      <div className="city-selector-sub">Choose your city to begin</div>
+      <div className="city-grid">
+        {CITIES.map(city=>{
+          const health=avgHealth(city);
+          const aqi=avgAqi(city);
+          const hc=scoreColor(health);
+          const isHov=hovered===city.id;
+          return (
+            <div
+              key={city.id}
+              className="city-card"
+              style={{'--c-color':city.color,borderColor:isHov?city.color:'var(--border)',boxShadow:isHov?`0 12px 40px ${city.color}22`:undefined}}
+              onMouseEnter={()=>setHovered(city.id)}
+              onMouseLeave={()=>setHovered(null)}
+              onClick={()=>pick(city)}
+            >
+              <span className="city-card-emoji">{city.emoji}</span>
+              <div className="city-card-pill" style={{background:city.color+'18',border:`1px solid ${city.color}44`,color:city.color}}>
+                {city.neighborhoods.length} neighborhoods
+              </div>
+              <div className="city-card-name" style={{color:isHov?city.color:'var(--text)'}}>{city.name}</div>
+              <div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{city.sustainability.score}% sustainability · {city.transit.length} transit lines</div>
+              <div className="city-card-stats">
+                <div className="city-stat">
+                  <span className="city-stat-val" style={{color:hc}}>{health}</span>
+                  <span className="city-stat-lbl">Health</span>
+                </div>
+                <div className="city-stat">
+                  <span className="city-stat-val" style={{color:aqiColor(aqi)}}>{aqi}</span>
+                  <span className="city-stat-lbl">Avg AQI</span>
+                </div>
+                <div className="city-stat">
+                  <span className="city-stat-val" style={{color:'var(--accent3)'}}>{city.sustainability.solar}%</span>
+                  <span className="city-stat-lbl">Solar</span>
+                </div>
+                <div className="city-stat">
+                  <span className="city-stat-val" style={{color:'var(--text)'}}>{city.sustainability.ev}</span>
+                  <span className="city-stat-lbl">EV Stations</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:32,fontSize:12,color:'var(--text3)',textAlign:'center'}}>
+        Powered by live sensor networks · AI insights via Groq · Real-time transit feeds
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const [page,setPage]=useState('dashboard');
   const [showKbd,setShowKbd]=useState(false);
   const [showSos,setShowSos]=useState(false);
   const [showGroqModal,setShowGroqModal]=useState(false);
-  const {alerts,data,groqKey,setGroqKey}=useContext(CityCtx);
+  const [showSelector,setShowSelector]=useState(true);
+  const {alerts,data,groqKey,setGroqKey,city,setCity}=useContext(CityCtx);
   const onNeedKey=useCallback(()=>setShowGroqModal(true),[]);
+
+  const pickCity=useCallback(c=>{
+    setCity(c);
+    setShowSelector(false);
+    setPage('dashboard');
+  },[]);
+
+  if(showSelector) return <CitySelector onPick={pickCity}/>;
 
   useEffect(()=>{
     const ids=['dashboard','map','neighborhood','reports','insights','learn'];
